@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// The focused iOS entry screen for the account-free private-chat build.
@@ -140,3 +141,4 @@ struct PrivateContactsHomeView: View {
         }
     }
 }
+#endif
