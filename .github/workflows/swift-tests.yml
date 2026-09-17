@@ -72,6 +72,7 @@ jobs:
         env:
           BITCHAT_SKIP_PERF_BASELINES: "1"
         run: |
+          exec > >(tee "$RUNNER_TEMP/app-tests.log") 2>&1
           swift test --skip-build --parallel --quiet --enable-code-coverage \
             --skip PerformanceBaselineTests \
             --package-path ${{ matrix.path }} &
@@ -93,6 +94,18 @@ jobs:
           wait "$test_pid" && status=0 || status=$?
           kill "$watchdog_pid" 2>/dev/null || true
           exit "$status"
+
+      - name: Surface app test diagnostics
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/app-tests.log" ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\r'/'%0D'}
+              line=${line//$'\n'/'%0A'}
+              echo "::error title=Swift test diagnostics::$line"
+            done < <(grep -iE 'error:|fatal error:|test failed|failed:|failure reason|assert|expect|✘|Test Case.*failed|Test Suite.*failed' "$RUNNER_TEMP/app-tests.log" | tail -n 80 || true)
+          fi
 
       # Read coverage before the serial benchmark command below rebuilds the
       # test binary without instrumentation. Reporting against that newer
