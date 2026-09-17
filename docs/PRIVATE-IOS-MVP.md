@@ -18,4 +18,4 @@ This branch narrows the iOS entry experience toward invitation-only private chat
 
 ## Automated validation
 
-`.github/workflows/ios-validation.yml` builds the iOS simulator target without signing and runs the Swift package tests on a macOS GitHub Actions runner. It is intentionally separate from TestFlight distribution, which will be configured later through Xcode Cloud after the Apple Developer account is available.
+The repository's existing `.github/workflows/swift-tests.yml` workflow builds the iOS simulator target, runs iOS simulator tests, runs Swift package tests, and performs lint/performance checks on macOS GitHub Actions runners. It is intentionally separate from TestFlight distribution, which will be configured later through Xcode Cloud after the Apple Developer account is available.
