@@ -156,7 +156,7 @@ npm run build
 npm run relay
 ```
 
-For phone use, host the built PWA over HTTPS and configure a `wss://` relay URL in Settings. The relay is a separate service under `web/relay/`; it forwards encrypted envelopes and keeps only a bounded in-memory cache in this MVP. See [web/README.md](web/README.md) for pairing and deployment details.
+For phone use, the production PWA defaults to public Nostr relays (`nostr://public`) and does not require a Nostr account. If you need your own relay, host the separate service under `web/relay/` and configure its `wss://` URL in Settings. See [web/README.md](web/README.md) for pairing and deployment details.
 
 ### Option 2: Using `just`
 

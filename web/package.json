@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@zxing/browser": "^0.1.5",
+    "nostr-tools": "^2.25.2",
     "qrcode": "^1.5.4",
     "ws": "^8.18.0"
   },

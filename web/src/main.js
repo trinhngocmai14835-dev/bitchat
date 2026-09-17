@@ -1,8 +1,7 @@
-import QRCode from "qrcode";
-import { BrowserMultiFormatReader } from "@zxing/browser";
 import "./styles.css";
 import {
   encodeInvite,
+  createNostrSecretKey,
   generateIdentity,
   openEnvelope,
   parseInvite,
@@ -35,8 +34,13 @@ if (!state?.identity?.exchangePrivateJwk || !state.identity.signingPrivateJwk) {
   state = createState(identity);
   saveState(state);
 }
+if (!state.identity.nostrSecretKey) {
+  state.identity.nostrSecretKey = createNostrSecretKey();
+  saveState(state);
+}
 
 const relay = new RelayClient({
+  identity: state.identity,
   onStatus: (status) => {
     relayStatus = status;
     const node = document.querySelector("[data-relay-status]");
@@ -213,7 +217,7 @@ function renderModal() {
   return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="settings">
     <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
     <div class="modal-kicker">本机设置</div><h2>设置</h2>
-    <form data-form="settings"><label>本机名称<input name="nickname" maxlength="32" value="${escapeHtml(state.identity.nickname || "")}" placeholder="例如：我的 iPhone" /></label><label>中继地址<input name="relayUrl" value="${escapeHtml(state.relayUrl || "")}" placeholder="wss://你的域名/ws" /></label><p class="micro-note">正式上线必须使用 HTTPS 页面 + WSS 中继；本地开发可用 ws://localhost:8787/ws。</p><button class="primary-button" type="submit">保存设置</button></form>
+    <form data-form="settings"><label>本机名称<input name="nickname" maxlength="32" value="${escapeHtml(state.identity.nickname || "")}" placeholder="例如：我的 iPhone" /></label><label>中继地址<input name="relayUrl" value="${escapeHtml(state.relayUrl || "")}" placeholder="nostr://public 或 wss://你的域名/ws" /></label><p class="micro-note">默认使用无需账号的公开 Nostr 中继；也可以改成自己的 wss:// 中继。本地开发可用 ws://localhost:8787/ws。</p><button class="primary-button" type="submit">保存设置</button></form>
   </section></div>`;
 }
 
@@ -222,6 +226,7 @@ async function drawQr() {
   const contact = ui.modal ? contactFor(state, ui.modal.contactId) : null;
   if (!canvas || !contact) return;
   try {
+    const { default: QRCode } = await import("qrcode");
     await QRCode.toCanvas(canvas, inviteFor(contact), { width: 236, margin: 1, color: { dark: "#111820", light: "#ffffff" } });
   } catch {
     showNotice("二维码生成失败，请复制文本邀请", "error");
@@ -279,8 +284,12 @@ function newInvite() {
 async function copyInvite() {
   const contact = contactFor(state, ui.modal?.contactId);
   if (!contact) return;
-  await navigator.clipboard.writeText(inviteFor(contact));
-  showNotice("邀请已复制，可以发给对方");
+  try {
+    await copyText(inviteFor(contact));
+    showNotice("邀请已复制，可以发给对方");
+  } catch {
+    showNotice("复制失败，请长按文本框手动复制", "error");
+  }
 }
 
 async function shareInvite() {
@@ -290,9 +299,34 @@ async function shareInvite() {
   if (navigator.share) {
     await navigator.share({ title: "BitChat 私聊邀请", text });
   } else {
-    await navigator.clipboard.writeText(text);
-    showNotice("当前浏览器不支持系统分享，邀请已复制");
+    try {
+      await copyText(text);
+      showNotice("当前浏览器不支持系统分享，邀请已复制");
+    } catch {
+      showNotice("分享和复制均不可用，请长按文本框手动复制", "error");
+    }
   }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for HTTP development servers and older Safari versions.
+    }
+  }
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "");
+  helper.style.position = "fixed";
+  helper.style.opacity = "0";
+  document.body.appendChild(helper);
+  helper.select();
+  const copied = document.execCommand("copy");
+  helper.remove();
+  if (!copied) throw new Error("copy unavailable");
 }
 
 async function startScanner() {
@@ -300,6 +334,7 @@ async function startScanner() {
   const hint = document.querySelector("#scanner-hint");
   if (!video) return;
   try {
+    const { BrowserMultiFormatReader } = await import("@zxing/browser");
     const reader = new BrowserMultiFormatReader();
     video.hidden = false;
     hint.textContent = "请把二维码放进取景框…";
@@ -351,7 +386,7 @@ async function sendMessage(event) {
       generation: contact.generation,
       payload: { type: "message", body },
     });
-    relay.publish(envelope);
+    await relay.publish(envelope);
     addMessage(state, contact.conversationId, { messageId: envelope.messageId, senderId: state.identity.id, body, createdAt: envelope.createdAt });
     saveState(state);
     render();
@@ -378,7 +413,7 @@ async function confirmDeleteBoth() {
       generation: contact.generation,
       payload: { type: "conversation.delete", deleteId, newGeneration },
     });
-    relay.publish(envelope);
+    await relay.publish(envelope);
     applyDelete(state, contact.conversationId, newGeneration, deleteId);
     saveState(state);
     render();

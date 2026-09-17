@@ -1,12 +1,26 @@
+import { finalizeEvent, SimplePool } from "nostr-tools";
+import { base64UrlToBytes } from "./protocol.js";
+
+const PUBLIC_RELAYS = [
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.primal.net",
+];
+const NOSTR_KIND = 1059;
+
 export class RelayClient {
-  constructor({ onEnvelope, onStatus }) {
+  constructor({ identity, onEnvelope, onStatus }) {
+    this.identity = identity;
     this.onEnvelope = onEnvelope;
     this.onStatus = onStatus;
     this.socket = null;
+    this.pool = new SimplePool();
+    this.subscription = null;
     this.url = "";
     this.conversationId = "";
     this.reconnectTimer = null;
     this.closedByUser = false;
+    this.transport = null;
   }
 
   connect(url, conversationId) {
@@ -14,11 +28,20 @@ export class RelayClient {
     this.conversationId = conversationId;
     this.closedByUser = false;
     this.clearReconnect();
+    this.closeCurrentTransport();
     if (!this.url) {
       this.onStatus("未配置中继");
       return;
     }
-    if (this.socket) this.socket.close();
+    if (this.url === "nostr://public") {
+      this.connectNostr();
+      return;
+    }
+    this.connectWebSocket();
+  }
+
+  connectWebSocket() {
+    this.transport = "websocket";
     this.onStatus("连接中");
     try {
       this.socket = new WebSocket(this.url);
@@ -41,7 +64,7 @@ export class RelayClient {
         this.socket = null;
         if (!this.closedByUser) {
           this.onStatus("已断开，稍后重连");
-          this.reconnectTimer = setTimeout(() => this.connect(this.url, this.conversationId), 3000);
+          this.scheduleReconnect();
         }
       });
       this.socket.addEventListener("error", () => this.onStatus("中继连接错误"));
@@ -50,7 +73,56 @@ export class RelayClient {
     }
   }
 
-  publish(envelope) {
+  connectNostr() {
+    this.transport = "nostr";
+    this.onStatus("连接公开中继");
+    try {
+      this.subscription = this.pool.subscribeMany(
+        PUBLIC_RELAYS,
+        { kinds: [NOSTR_KIND], "#d": [this.conversationId], "#t": ["bitchat-pwa-v1"], limit: 500 },
+        {
+          onevent: (event) => {
+            try {
+              const envelope = JSON.parse(event.content);
+              if (envelope?.v === 1 && envelope.conversationId === this.conversationId) {
+                this.onStatus("已连接");
+                this.onEnvelope(envelope);
+              }
+            } catch {
+              // A public relay can contain unrelated or malformed content.
+            }
+          },
+          oneose: () => this.onStatus("已连接"),
+          onclose: () => {
+            if (!this.closedByUser) {
+              this.onStatus("公开中继已断开，稍后重连");
+              this.scheduleReconnect();
+            }
+          },
+        },
+      );
+    } catch {
+      this.onStatus("公开中继不可用");
+      this.scheduleReconnect();
+    }
+  }
+
+  async publish(envelope) {
+    if (this.transport === "nostr") {
+      if (!this.identity?.nostrSecretKey) throw new Error("本机公开中继密钥不存在，请重新生成本机身份");
+      const event = finalizeEvent(
+        {
+          kind: NOSTR_KIND,
+          created_at: Math.floor(envelope.createdAt / 1000),
+          tags: [["d", envelope.conversationId], ["t", "bitchat-pwa-v1"]],
+          content: JSON.stringify(envelope),
+        },
+        base64UrlToBytes(this.identity.nostrSecretKey),
+      );
+      const attempts = this.pool.publish(PUBLIC_RELAYS, event);
+      await firstSuccessful(attempts);
+      return;
+    }
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("尚未连接中继服务器");
     }
@@ -60,12 +132,43 @@ export class RelayClient {
   close() {
     this.closedByUser = true;
     this.clearReconnect();
+    this.closeCurrentTransport();
+    this.onStatus("未连接");
+  }
+
+  closeCurrentTransport() {
     if (this.socket) this.socket.close();
     this.socket = null;
+    if (this.subscription) this.subscription.close();
+    this.subscription = null;
+    this.transport = null;
+  }
+
+  scheduleReconnect() {
+    this.clearReconnect();
+    this.reconnectTimer = setTimeout(() => this.connect(this.url, this.conversationId), 5000);
   }
 
   clearReconnect() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
   }
+}
+
+function firstSuccessful(promises) {
+  return new Promise((resolve, reject) => {
+    let remaining = promises.length;
+    let lastError = new Error("所有公开中继都拒绝了消息");
+    if (remaining === 0) {
+      reject(lastError);
+      return;
+    }
+    for (const promise of promises) {
+      promise.then(resolve).catch((error) => {
+        lastError = error;
+        remaining -= 1;
+        if (remaining === 0) reject(lastError);
+      });
+    }
+  });
 }

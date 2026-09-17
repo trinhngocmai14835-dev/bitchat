@@ -37,6 +37,10 @@ export function randomId() {
   return bytesToBase64Url(bytes);
 }
 
+export function createNostrSecretKey() {
+  return bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+}
+
 export async function sha256Hex(value) {
   const bytes = typeof value === "string" ? textEncoder.encode(value) : value;
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -78,6 +82,7 @@ export async function generateIdentity(nickname = "") {
     exchangePublicJwk,
     signingPrivateJwk: await exportKey(signing.privateKey),
     signingPublicJwk,
+    nostrSecretKey: createNostrSecretKey(),
     createdAt: Date.now(),
   };
 }

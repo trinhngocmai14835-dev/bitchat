@@ -6,7 +6,7 @@
 
 - 首次打开自动生成本机身份，不需要账号或注册。
 - 双方互相导入邀请文本，也可以使用摄像头扫描 QR 邀请。
-- 使用浏览器 Web Crypto 的 P-256 ECDH + ECDSA + AES-GCM；中继只看到加密消息包，不能读取聊天正文。
+- 使用浏览器 Web Crypto 的 P-256 ECDH + ECDSA + AES-GCM；默认通过无需账号的公开 Nostr 中继发送加密消息包，中继不能读取聊天正文。也可以在设置里换成自己的 `wss://` 中继。
 - 任意一方可以执行“删除双方记录”。删除指令也会加密发送给对方；双方客户端收到后清空本地记录并切换到新的聊天代次，旧中继消息不会重新显示。
 - Service Worker 缓存应用外壳，支持添加到 iPhone 主屏幕。
 
@@ -32,7 +32,9 @@ npm run relay
 npm run dev -- --host 0.0.0.0
 ```
 
-本地电脑访问 `http://localhost:5173`，中继地址保持默认的 `ws://localhost:8787/ws`。手机要访问电脑上的开发服务，需要把中继地址改成电脑局域网 IP；但 iPhone 摄像头和 Service Worker 的完整能力需要 HTTPS，正式测试应部署到 HTTPS 站点并使用 `wss://` 中继。
+本地电脑访问 `http://localhost:5173`，中继地址保持默认的 `ws://localhost:8787/ws`。手机要访问电脑上的开发服务，需要把中继地址改成电脑局域网 IP；但 iPhone 摄像头和 Service Worker 的完整能力需要 HTTPS。
+
+正式部署到 GitHub Pages 后，生产构建会默认使用 `nostr://public`，因此不需要先准备自己的服务器即可做两部 iPhone 的远程联调。公开中继会看到会话编号、时间和加密包大小等元数据；如果这也不接受，就部署 `web/relay/` 并在设置里改成自己的 `wss://` 地址。
 
 ## 配对方式
 
