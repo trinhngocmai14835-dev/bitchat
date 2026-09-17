@@ -5,8 +5,12 @@ IPHONEOS_DEPLOYMENT_TARGET = 16.0
 MACOSX_DEPLOYMENT_TARGET = 13.0
 SWIFT_VERSION = 5.0
 
-DEVELOPMENT_TEAM = L3N5LHJD5Y
+// Signed builds provide the developer team and unique identifiers through
+// Configs/Local.xcconfig. Xcode Cloud creates that ignored file in ci_scripts.
+DEVELOPMENT_TEAM =
 CODE_SIGN_STYLE = Automatic
 
 PRODUCT_BUNDLE_IDENTIFIER = chat.bitchat
 APP_GROUP_ID = group.chat.bitchat
+
+#include? "Local.xcconfig"
