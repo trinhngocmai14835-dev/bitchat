@@ -30,6 +30,17 @@ let state = loadState();
 let relayStatus = "未连接";
 let scannerControls = null;
 
+function updateViewportHeight() {
+  const height = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", `${Math.round(height)}px`);
+}
+
+updateViewportHeight();
+window.addEventListener("resize", updateViewportHeight, { passive: true });
+window.addEventListener("orientationchange", updateViewportHeight, { passive: true });
+window.visualViewport?.addEventListener("resize", updateViewportHeight, { passive: true });
+window.visualViewport?.addEventListener("scroll", updateViewportHeight, { passive: true });
+
 if (!state?.identity?.exchangePrivateJwk || !state.identity.signingPrivateJwk) {
   const identity = await generateIdentity(`设备-${randomId().slice(0, 4)}`);
   state = createState(identity);
