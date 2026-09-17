@@ -292,7 +292,7 @@ function renderModal() {
       <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
       <div class="modal-kicker">加入私聊</div><h2>导入对方邀请</h2>
       <p class="modal-description">输入对方发来的 6 位数字即可加入。</p>
-      <div class="code-import-row"><input id="invite-code-input" class="invite-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="输入 6 位数字邀请码" /><button class="primary-button" data-action="resolve-code">加入</button></div>
+      <div class="code-import-row"><input id="invite-code-input" class="invite-code-input" type="tel" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="6" pattern="[0-9]*" aria-label="6 位数字邀请码" placeholder="输入 6 位数字邀请码" /><button class="primary-button" data-action="resolve-code">加入</button></div>
       <p class="micro-note">邀请码 10 分钟内有效。配对完成后，请把你的数字邀请码发回对方。</p>
     </section></div>`;
   }
@@ -324,7 +324,12 @@ function bindEvents() {
     render();
   }));
   document.querySelectorAll("[data-action='new-invite']").forEach((node) => node.addEventListener("click", newInvite));
-  document.querySelectorAll("[data-action='import-invite']").forEach((node) => node.addEventListener("click", () => { ui.modal = { type: "import" }; render(); }));
+  document.querySelectorAll("[data-action='import-invite']").forEach((node) => node.addEventListener("click", () => {
+    ui.modal = { type: "import" };
+    render();
+    const input = document.querySelector("#invite-code-input");
+    input?.focus({ preventScroll: true });
+  }));
   document.querySelectorAll("[data-action='settings']").forEach((node) => node.addEventListener("click", () => { ui.modal = { type: "settings" }; render(); }));
   document.querySelectorAll("[data-action='show-invite']").forEach((node) => node.addEventListener("click", () => {
     ui.modal = { type: "invite", contactId: node.dataset.contact };
@@ -335,6 +340,17 @@ function bindEvents() {
   document.querySelectorAll("[data-action='chat-menu']").forEach((node) => node.addEventListener("click", confirmDeleteBoth));
   document.querySelectorAll("[data-action='copy-code']").forEach((node) => node.addEventListener("click", copyInviteCode));
   document.querySelectorAll("[data-action='resolve-code']").forEach((node) => node.addEventListener("click", importInviteByCode));
+  document.querySelectorAll("#invite-code-input").forEach((node) => {
+    node.addEventListener("input", () => {
+      node.value = node.value.replace(/\D/g, "").slice(0, 6);
+    });
+    node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        importInviteByCode();
+      }
+    });
+  });
   document.querySelectorAll("[data-form='send']").forEach((form) => form.addEventListener("submit", sendMessage));
   document.querySelectorAll("[data-form='settings']").forEach((form) => form.addEventListener("submit", saveSettings));
 }

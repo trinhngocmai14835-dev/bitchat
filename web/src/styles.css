@@ -80,7 +80,6 @@ h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 
 .composer { display: flex; flex: 0 0 auto; gap: 8px; padding-top: 9px; padding-bottom: max(0px, env(safe-area-inset-bottom)); border-top: 1px solid #ffffff0b; }
 .composer input, .invite-code-input, label input { width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid #ffffff12; border-radius: 14px; outline: none; color: #edf3f5; background: #151b21; }
 .composer input, .invite-code-input, label input { font-size: 16px; }
-.invite-text { font-size: 10px; }
 .composer input:focus, .invite-code-input:focus, label input:focus { border-color: #b5f36e88; }
 .send-button { flex: 0 0 46px; height: 46px; border-radius: 14px; color: #0e1116; background: #b5f36e; font-size: 23px; font-weight: 800; }
 .modal-layer { position: fixed; z-index: 10; inset: 0; display: grid; place-items: end center; height: var(--app-height); padding: 14px; background: #0009; }
