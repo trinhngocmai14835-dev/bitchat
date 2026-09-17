@@ -1,4 +1,4 @@
-const CACHE_NAME = "bitchat-pwa-v6";
+const CACHE_NAME = "bitchat-pwa-v7";
 const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const APP_SHELL = [
   `${BASE_PATH}/`,
