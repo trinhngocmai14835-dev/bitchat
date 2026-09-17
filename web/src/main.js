@@ -31,7 +31,6 @@ const ui = { modal: null, notice: null, inviteCode: null };
 let state = loadState();
 const rememberedIdentity = loadIdentity();
 let relayStatus = "未连接";
-let scannerControls = null;
 let inviteCodeRequest = 0;
 
 function updateViewportHeight() {
@@ -133,12 +132,6 @@ function inviteFor(contact) {
   });
 }
 
-function inviteLinkFor(contact) {
-  const url = new URL(import.meta.env.BASE_URL || "/", window.location.origin);
-  url.searchParams.set("invite", inviteFor(contact));
-  return url.toString();
-}
-
 function inviteCodeFor(contact) {
   if (ui.modal?.type === "invite" && ui.modal.contactId === contact.conversationId && ui.inviteCode !== null) {
     return ui.inviteCode;
@@ -162,7 +155,7 @@ function relayApiBase() {
 
 async function inviteApi(path, options = {}) {
   const base = relayApiBase();
-  if (!base) throw new Error("当前中继不支持数字邀请码，请使用分享链接或二维码");
+  if (!base) throw new Error("当前中继不支持数字邀请码，请检查中继地址");
   const response = await fetch(new URL(path, base), {
     ...options,
     cache: "no-store",
@@ -197,7 +190,7 @@ async function ensureInviteCode(contact) {
     if (requestId !== inviteCodeRequest) return;
     ui.inviteCode = "";
     render();
-    showNotice(error.message || "数字邀请码生成失败，请使用分享链接", "error");
+    showNotice(error.message || "数字邀请码生成失败，请稍后重试", "error");
   }
 }
 
@@ -226,7 +219,6 @@ function render() {
     </div>`;
 
   bindEvents();
-  if (ui.modal?.type === "invite") drawQr();
 }
 
 function renderHome(displayName) {
@@ -285,30 +277,23 @@ function renderModal() {
   if (ui.modal.type === "invite") {
     const contact = contactFor(state, ui.modal.contactId);
     if (!contact) return "";
-    const invite = inviteFor(contact);
     const inviteCode = inviteCodeFor(contact);
     return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="invite">
       <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
-      <div class="modal-kicker">安全配对</div><h2>把这份邀请发给对方</h2>
-      <p class="modal-description">把数字邀请码或分享链接发给对方。对方导入后，还要把自己的回传邀请发回来。</p>
+      <div class="modal-kicker">数字配对</div><h2>把 6 位数字发给对方</h2>
+      <p class="modal-description">对方在“导入邀请”中输入这 6 位数字即可加入。对方也需要把自己的数字发回给你。</p>
       <div class="invite-code-card"><span>6 位数字邀请码 · 10 分钟有效</span><strong>${escapeHtml(inviteCode || "生成中…")}</strong></div>
-      <div class="qr-frame"><canvas id="invite-qr"></canvas></div>
-      <textarea class="invite-text" readonly>${escapeHtml(invite)}</textarea>
-      <div class="modal-actions invite-actions"><button class="primary-button" data-action="copy-code" ${inviteCode ? "" : "disabled"}>复制数字邀请码</button><button class="secondary-button" data-action="share-invite">分享链接</button><button class="secondary-button wide" data-action="copy-invite">复制完整邀请文本</button></div>
-      <p class="micro-note">数字邀请码只短期有效；二维码、文本和链接只包含会话编号及公钥，不包含聊天记录。</p>
+      <div class="modal-actions invite-actions"><button class="primary-button wide" data-action="copy-code" ${inviteCode ? "" : "disabled"}>复制数字邀请码</button></div>
+      <p class="micro-note">邀请码只短期有效，不是账号，也不会暴露聊天内容。</p>
     </section></div>`;
   }
   if (ui.modal.type === "import") {
     return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="import">
       <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
       <div class="modal-kicker">加入私聊</div><h2>导入对方邀请</h2>
-      <p class="modal-description">输入对方发来的 6 位数字即可加入，也可以点击分享链接或扫描二维码。</p>
+      <p class="modal-description">输入对方发来的 6 位数字即可加入。</p>
       <div class="code-import-row"><input id="invite-code-input" class="invite-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="输入 6 位数字邀请码" /><button class="primary-button" data-action="resolve-code">加入</button></div>
-      <p class="modal-divider"><span>或者使用邀请文本</span></p>
-      <textarea id="invite-input" class="invite-input" placeholder="粘贴 bitchat-pwa:v1: 开头的邀请文本"></textarea>
-      <div class="scanner-wrap"><video id="scanner-video" playsinline muted hidden></video><p id="scanner-hint">摄像头仅用于本次扫描，不会上传画面。</p></div>
-      <div class="modal-actions import-actions"><button class="secondary-button" data-action="read-clipboard">读取剪贴板</button><button class="secondary-button" data-action="scan-invite">扫描二维码</button><button class="primary-button wide" data-action="import-confirm">导入并打开</button></div>
-      <p class="micro-note">如果输入框不弹出“粘贴”，点“读取剪贴板”，或让对方重新发送分享链接。</p>
+      <p class="micro-note">邀请码 10 分钟内有效。配对完成后，请把你的数字邀请码发回对方。</p>
     </section></div>`;
   }
   return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="settings">
@@ -316,18 +301,6 @@ function renderModal() {
     <div class="modal-kicker">本机设置</div><h2>设置</h2>
     <form data-form="settings"><label>本机名称<input name="nickname" maxlength="32" value="${escapeHtml(state.identity.nickname || "")}" placeholder="例如：我的 iPhone" /></label><label>中继地址<input name="relayUrl" value="${escapeHtml(state.relayUrl || "")}" placeholder="https://你的中继域名 或 wss://你的域名/ws" /></label><p class="micro-note">默认使用项目专用的 HTTPS 中继；也可以改成自己的 HTTPS/WSS 中继。本地开发可用 ws://localhost:8787/ws。</p><button class="primary-button" type="submit">保存设置</button></form>
   </section></div>`;
-}
-
-async function drawQr() {
-  const canvas = document.querySelector("#invite-qr");
-  const contact = ui.modal ? contactFor(state, ui.modal.contactId) : null;
-  if (!canvas || !contact) return;
-  try {
-    const { default: QRCode } = await import("qrcode");
-    await QRCode.toCanvas(canvas, inviteFor(contact), { width: 236, margin: 1, color: { dark: "#111820", light: "#ffffff" } });
-  } catch {
-    showNotice("二维码生成失败，请复制文本邀请", "error");
-  }
 }
 
 function bindEvents() {
@@ -360,19 +333,13 @@ function bindEvents() {
     ensureInviteCode(contactFor(state, node.dataset.contact));
   }));
   document.querySelectorAll("[data-action='chat-menu']").forEach((node) => node.addEventListener("click", confirmDeleteBoth));
-  document.querySelectorAll("[data-action='copy-invite']").forEach((node) => node.addEventListener("click", copyInvite));
   document.querySelectorAll("[data-action='copy-code']").forEach((node) => node.addEventListener("click", copyInviteCode));
-  document.querySelectorAll("[data-action='share-invite']").forEach((node) => node.addEventListener("click", shareInvite));
-  document.querySelectorAll("[data-action='read-clipboard']").forEach((node) => node.addEventListener("click", readClipboardInvite));
-  document.querySelectorAll("[data-action='scan-invite']").forEach((node) => node.addEventListener("click", startScanner));
-  document.querySelectorAll("[data-action='import-confirm']").forEach((node) => node.addEventListener("click", importInvite));
   document.querySelectorAll("[data-action='resolve-code']").forEach((node) => node.addEventListener("click", importInviteByCode));
   document.querySelectorAll("[data-form='send']").forEach((form) => form.addEventListener("submit", sendMessage));
   document.querySelectorAll("[data-form='settings']").forEach((form) => form.addEventListener("submit", saveSettings));
 }
 
 function closeModal() {
-  stopScanner();
   ui.modal = null;
   ui.inviteCode = null;
   render();
@@ -389,17 +356,6 @@ function newInvite() {
   ensureInviteCode(contact);
 }
 
-async function copyInvite() {
-  const contact = contactFor(state, ui.modal?.contactId);
-  if (!contact) return;
-  try {
-    await copyText(inviteFor(contact));
-    showNotice("邀请已复制，可以发给对方");
-  } catch {
-    showNotice("复制失败，请长按文本框手动复制", "error");
-  }
-}
-
 async function copyInviteCode() {
   const contact = contactFor(state, ui.modal?.contactId);
   const code = contact ? inviteCodeFor(contact) : "";
@@ -412,35 +368,6 @@ async function copyInviteCode() {
     showNotice("数字邀请码已复制");
   } catch {
     showNotice("复制失败，请记下这 6 位数字", "error");
-  }
-}
-
-async function shareInvite() {
-  const contact = contactFor(state, ui.modal?.contactId);
-  if (!contact) return;
-  const link = inviteLinkFor(contact);
-  if (navigator.share) {
-    await navigator.share({ title: "BitChat 私聊邀请", text: "点击打开 BitChat 并自动加入私聊", url: link });
-  } else {
-    try {
-      await copyText(link);
-      showNotice("邀请链接已复制，发给对方即可");
-    } catch {
-      showNotice("分享和复制均不可用，请复制邀请文本或使用二维码", "error");
-    }
-  }
-}
-
-async function readClipboardInvite() {
-  try {
-    if (!navigator.clipboard?.readText) throw new Error("clipboard unavailable");
-    const text = await navigator.clipboard.readText();
-    if (!text.trim()) throw new Error("clipboard empty");
-    const input = document.querySelector("#invite-input");
-    if (input) input.value = text;
-    showNotice("已读取剪贴板，请点击“导入并打开”");
-  } catch {
-    showNotice("系统禁止读取剪贴板，请使用分享链接、二维码，或长按输入框选择“粘贴”", "error");
   }
 }
 
@@ -465,43 +392,6 @@ async function copyText(text) {
   if (!copied) throw new Error("copy unavailable");
 }
 
-async function startScanner() {
-  const video = document.querySelector("#scanner-video");
-  const hint = document.querySelector("#scanner-hint");
-  if (!video) return;
-  try {
-    const { BrowserMultiFormatReader } = await import("@zxing/browser");
-    const reader = new BrowserMultiFormatReader();
-    video.hidden = false;
-    hint.textContent = "请把二维码放进取景框…";
-    scannerControls = await reader.decodeFromVideoDevice(undefined, video, (result) => {
-      if (!result) return;
-      const input = document.querySelector("#invite-input");
-      if (input) input.value = result.getText();
-      hint.textContent = "已识别，请点击“导入并打开”。";
-      stopScanner();
-    });
-  } catch {
-    hint.textContent = "无法开启摄像头，请改用复制粘贴邀请文本。";
-  }
-}
-
-function stopScanner() {
-  if (scannerControls) scannerControls.stop();
-  scannerControls = null;
-  const video = document.querySelector("#scanner-video");
-  if (video) video.hidden = true;
-}
-
-function importInvite() {
-  const input = document.querySelector("#invite-input");
-  try {
-    completeImport(parseInvite(input?.value || ""));
-  } catch (error) {
-    showNotice(error.message || "邀请无效", "error");
-  }
-}
-
 async function importInviteByCode() {
   const input = document.querySelector("#invite-code-input");
   const code = (input?.value || "").replace(/\D/g, "");
@@ -524,23 +414,6 @@ function completeImport(invite) {
     closeModal();
     showNotice(`已加入与“${contact.nickname}”的私聊，请把本机邀请回传给对方`);
     connectActive();
-}
-
-function consumeInviteFromUrl() {
-  const raw = new URL(window.location.href).searchParams.get("invite");
-  if (!raw) return;
-  try {
-    const invite = parseInvite(raw);
-    if (invite.peer.id === state.identity.id) throw new Error("这是本机自己的邀请");
-    const contact = mergeInvite(state, invite);
-    saveState(state);
-    const clean = new URL(window.location.href);
-    clean.searchParams.delete("invite");
-    window.history.replaceState(null, "", `${clean.pathname}${clean.search}${clean.hash}`);
-    ui.notice = { message: `已通过链接加入“${contact.nickname}”的私聊，请把本机回传邀请发给对方`, kind: "info" };
-  } catch (error) {
-    ui.notice = { message: error.message || "邀请链接无效", kind: "error" };
-  }
 }
 
 async function sendMessage(event) {
@@ -623,7 +496,6 @@ function connectActive() {
   relay.connect(state.relayUrl, contact.conversationId);
 }
 
-consumeInviteFromUrl();
 render();
 connectActive();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
