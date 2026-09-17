@@ -105,7 +105,7 @@ jobs:
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
               payload="${payload}${line}%0A"
-            done < <(grep -iE "error|failed|assert|expect|test case|test suite|✘" "$RUNNER_TEMP/app-tests.log" | tail -n 80 || true)
+            done < <(grep -iE "error:|fatal error:|test failed|failed:|failure reason|assert|expect|✘" "$RUNNER_TEMP/app-tests.log" | head -n 80 || true)
             if [ -n "$payload" ]; then
               echo "::error title=Swift test diagnostics::$payload"
             fi
@@ -190,7 +190,7 @@ jobs:
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
               payload="${payload}${line}%0A"
-            done < <(grep -iE "error|failed|failure reason|command compile|copystrings" "$RUNNER_TEMP/ios-build.log" | tail -n 80 || true)
+            done < <(grep -iE "error:|fatal error:|command compile|failure reason|failed:" "$RUNNER_TEMP/ios-build.log" | head -n 80 || true)
             if [ -n "$payload" ]; then
               echo "::error title=iOS build diagnostics::$payload"
             fi
@@ -309,7 +309,7 @@ jobs:
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
               payload="${payload}${line}%0A"
-            done < <(grep -iE "error|failed|failure reason|assert|expect|test case|test suite|✘" "$RUNNER_TEMP/ios-tests.log" | tail -n 80 || true)
+            done < <(grep -iE "error:|fatal error:|test failed|failed:|failure reason|assert|expect|✘" "$RUNNER_TEMP/ios-tests.log" | head -n 80 || true)
             if [ -n "$payload" ]; then
               echo "::error title=iOS test diagnostics::$payload"
             fi

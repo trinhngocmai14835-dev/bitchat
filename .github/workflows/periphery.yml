@@ -43,7 +43,7 @@ jobs:
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
               payload="${payload}${line}%0A"
-            done < <(grep -iE "error|fatal error|warning|dead code|unused|failed" "$RUNNER_TEMP/periphery.log" | tail -n 80 || true)
+            done < <(grep -iE "error:|fatal error|warning|dead code|unused|failed:" "$RUNNER_TEMP/periphery.log" | head -n 80 || true)
             if [ -n "$payload" ]; then
               echo "::error title=Periphery diagnostics::$payload"
             fi
