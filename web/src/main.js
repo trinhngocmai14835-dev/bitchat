@@ -158,8 +158,13 @@ function inviteCodeFor(contact) {
 }
 
 function relayApiBase() {
+  if (!state.relayUrl || state.relayUrl === "nostr://public") {
+    const fallback = new URL(defaultRelayUrl());
+    if (fallback.protocol === "ws:") fallback.protocol = "http:";
+    if (fallback.protocol === "wss:") fallback.protocol = "https:";
+    return ["http:", "https:"].includes(fallback.protocol) ? `${fallback.origin}/` : null;
+  }
   try {
-    if (!state.relayUrl || state.relayUrl === "nostr://public") return null;
     const url = new URL(state.relayUrl);
     if (url.protocol === "ws:") url.protocol = "http:";
     if (url.protocol === "wss:") url.protocol = "https:";
@@ -386,6 +391,7 @@ function newInvite() {
   ui.modal = { type: "invite", contactId: contact.conversationId };
   ui.inviteCode = null;
   render();
+  connectActive();
   ensureInviteCode(contact);
 }
 
