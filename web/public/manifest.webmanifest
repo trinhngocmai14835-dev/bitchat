@@ -1,0 +1,12 @@
+{
+  "name": "BitChat 私聊",
+  "short_name": "私聊",
+  "description": "无需注册的私密双人聊天",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116",
+  "lang": "zh-CN",
+  "categories": ["social", "communication"]
+}

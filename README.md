@@ -144,6 +144,20 @@ If `iPhone 17` is unavailable, choose an installed simulator from:
 xcodebuild -showdestinations -project bitchat.xcodeproj -scheme "bitchat (iOS)"
 ```
 
+### Option 3: Using the private-chat PWA
+
+The `web/` directory contains a separate mobile-first PWA for private two-person chat. It does not use Bluetooth or user accounts. Pairing is done by exchanging invitations, messages are encrypted in the browser, and either participant can send a signed command to clear both compliant clients' local conversation history.
+
+```bash
+cd web
+npm install
+npm test
+npm run build
+npm run relay
+```
+
+For phone use, host the built PWA over HTTPS and configure a `wss://` relay URL in Settings. The relay is a separate service under `web/relay/`; it forwards encrypted envelopes and keeps only a bounded in-memory cache in this MVP. See [web/README.md](web/README.md) for pairing and deployment details.
+
 ### Option 2: Using `just`
 
 ```bash

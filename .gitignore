@@ -81,3 +81,7 @@ build.log
 # Local configs
 Local.xcconfig
 *.profraw
+
+# PWA dependencies and production output
+web/node_modules/
+web/dist/
