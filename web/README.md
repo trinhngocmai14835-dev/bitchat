@@ -36,6 +36,14 @@ npm run dev -- --host 0.0.0.0
 
 正式部署到 GitHub Pages 后，生产构建会默认使用 `nostr://public`，因此不需要先准备自己的服务器即可做两部 iPhone 的远程联调。公开中继会看到会话编号、时间和加密包大小等元数据；如果这也不接受，就部署 `web/relay/` 并在设置里改成自己的 `wss://` 地址。
 
+## 用 iPhone 测试
+
+1. 打开 Fork 的 `Settings -> Pages`，把 Source 设为 **GitHub Actions**。
+2. 打开 `Actions`，等待 **Deploy PWA to GitHub Pages** 变绿。
+3. 在两部 iPhone 的 Safari 打开 `https://trinhngocmai14835-dev.github.io/bitchat/`，可通过“分享 -> 添加到主屏幕”安装。
+4. 两部手机各设置一个本机名称。A 创建邀请，B 导入后显示回传邀请，A 再导入回传邀请。
+5. 保持默认的 `nostr://public` 中继即可开始远程聊天。右上角菜单里的“删除双方记录”会向对方发送加密删除指令。
+
 ## 配对方式
 
 1. A 点“新建邀请”，把 QR 或邀请文本发给 B。
