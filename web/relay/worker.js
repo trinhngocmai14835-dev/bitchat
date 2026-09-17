@@ -3,6 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 const MAX_ROOM_MESSAGES = 500;
 const MAX_ENVELOPE_BYTES = 64 * 1024;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const INVITE_TTL_SECONDS = 10 * 60;
 
 function validConversationId(value) {
   return typeof value === "string" && value.length >= 8 && value.length <= 128;
@@ -18,6 +19,10 @@ function validEnvelope(envelope) {
     && typeof envelope.iv === "string"
     && typeof envelope.ciphertext === "string"
     && typeof envelope.signature === "string";
+}
+
+function validInvite(value) {
+  return typeof value === "string" && value.startsWith("bitchat-pwa:v1:") && value.length <= 4096;
 }
 
 function jsonResponse(body, status = 200) {
@@ -37,7 +42,11 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: jsonResponse({}).headers });
     if (url.pathname === "/health") return jsonResponse({ ok: true, service: "bitchat-relay" });
-    if (!["/ws", "/poll", "/publish"].includes(url.pathname)) return jsonResponse({ error: "BitChat relay: use /poll, /publish, or WebSocket /ws" }, 404);
+    if (["/invite/create", "/invite/resolve"].includes(url.pathname)) {
+      const id = env.INVITE_DIRECTORY.idFromName("global");
+      return env.INVITE_DIRECTORY.get(id).fetch(request);
+    }
+    if (!["/ws", "/poll", "/publish"].includes(url.pathname)) return jsonResponse({ error: "BitChat relay: use /poll, /publish, or /invite" }, 404);
     if (url.pathname === "/ws" && request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return jsonResponse({ error: "WebSocket upgrade required" }, 426);
     }
@@ -155,5 +164,48 @@ export class ChatRoom extends DurableObject {
 
   sendError(socket, message) {
     socket.send(JSON.stringify({ type: "error", message }));
+  }
+}
+
+export class InviteDirectory extends DurableObject {
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname === "/invite/create" && request.method === "POST") {
+      const raw = await request.text();
+      if (raw.length > 8192) return jsonResponse({ error: "invite too large" }, 413);
+      try {
+        const packet = JSON.parse(raw);
+        if (!validInvite(packet.invite)) return jsonResponse({ error: "invalid invite" }, 400);
+        const now = Date.now();
+        let code = "";
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          const candidate = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+          const existing = await this.ctx.storage.get(`code:${candidate}`);
+          if (!existing || existing.expiresAt <= now) {
+            code = candidate;
+            break;
+          }
+        }
+        if (!code) return jsonResponse({ error: "邀请码繁忙，请稍后重试" }, 503);
+        const expiresAt = now + INVITE_TTL_SECONDS * 1000;
+        await this.ctx.storage.put(`code:${code}`, { invite: packet.invite, expiresAt }, { expirationTtl: INVITE_TTL_SECONDS });
+        return jsonResponse({ code, expiresAt });
+      } catch {
+        return jsonResponse({ error: "invalid json" }, 400);
+      }
+    }
+
+    if (url.pathname === "/invite/resolve" && request.method === "GET") {
+      const code = url.searchParams.get("code") || "";
+      if (!/^\d{6}$/.test(code)) return jsonResponse({ error: "请输入 6 位数字邀请码" }, 400);
+      const entry = await this.ctx.storage.get(`code:${code}`);
+      if (!entry || entry.expiresAt <= Date.now()) {
+        await this.ctx.storage.delete(`code:${code}`);
+        return jsonResponse({ error: "数字邀请码无效或已过期" }, 404);
+      }
+      return jsonResponse({ invite: entry.invite, expiresAt: entry.expiresAt });
+    }
+
+    return jsonResponse({ error: "not found" }, 404);
   }
 }

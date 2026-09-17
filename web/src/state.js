@@ -1,7 +1,16 @@
 import { randomId } from "./protocol.js";
 
 export const STORAGE_KEY = "bitchat-pwa-state-v1";
+export const IDENTITY_STORAGE_KEY = "bitchat-pwa-identity-v1";
 export const PRODUCTION_RELAY_URL = "https://bitchat-private-relay.soft-api-7mskfl.workers.dev";
+
+export function isValidIdentity(identity) {
+  return Boolean(identity?.id
+    && identity.exchangePrivateJwk
+    && identity.exchangePublicJwk
+    && identity.signingPrivateJwk
+    && identity.signingPublicJwk);
+}
 
 export function defaultRelayUrl() {
   if (typeof location === "undefined") return "ws://localhost:8787/ws";
@@ -29,8 +38,20 @@ export function loadState() {
   }
 }
 
+export function loadIdentity() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(IDENTITY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function saveState(state) {
-  if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (isValidIdentity(state?.identity)) localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(state.identity));
 }
 
 export function createConversation(identity) {
