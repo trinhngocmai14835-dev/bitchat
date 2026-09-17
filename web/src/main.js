@@ -18,6 +18,7 @@ import {
   loadState,
   mergeInvite,
   messagesFor,
+  defaultRelayUrl,
   saveState,
 } from "./state.js";
 import { RelayClient } from "./relay.js";
@@ -36,6 +37,10 @@ if (!state?.identity?.exchangePrivateJwk || !state.identity.signingPrivateJwk) {
 }
 if (!state.identity.nostrSecretKey) {
   state.identity.nostrSecretKey = createNostrSecretKey();
+  saveState(state);
+}
+if (state.relayUrl === "nostr://public" && defaultRelayUrl() !== "nostr://public") {
+  state.relayUrl = defaultRelayUrl();
   saveState(state);
 }
 

@@ -34,7 +34,7 @@ npm run dev -- --host 0.0.0.0
 
 本地电脑访问 `http://localhost:5173`，中继地址保持默认的 `ws://localhost:8787/ws`。手机要访问电脑上的开发服务，需要把中继地址改成电脑局域网 IP；但 iPhone 摄像头和 Service Worker 的完整能力需要 HTTPS。
 
-正式部署到 GitHub Pages 或 Cloudflare Pages 后，生产构建会默认使用 `nostr://public`，因此可以先做联调。由于部分网络无法连接公开 Nostr 中继，正式使用建议部署 `web/relay/` 下的 Cloudflare Worker，然后在设置里填入它的 `wss://你的中继域名/ws` 地址；公开中继和自建中继都只能看到会话编号、时间和加密包大小等元数据。
+正式部署到 GitHub Pages 或 Cloudflare Pages 后，生产构建默认使用项目专用的 Cloudflare Worker 中继。由于部分网络无法连接公开 Nostr 中继，项目也保留了 `nostr://public` 作为备用选项；公开中继和自建中继都只能看到会话编号、时间和加密包大小等元数据。
 
 ## 部署 Cloudflare 专用中继
 

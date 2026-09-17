@@ -63,7 +63,6 @@ export class ChatRoom extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ conversationId });
-    server.send(JSON.stringify({ type: "sync", envelopes: await this.messages() }));
     return new Response(null, { status: 101, webSocket: client });
   }
 

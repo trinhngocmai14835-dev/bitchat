@@ -143,7 +143,7 @@ export class RelayClient {
       try {
         await Promise.race([
           openPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("中继连接超时，请稍后重试")), 8000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("中继连接超时，请稍后重试")), 15000)),
         ]);
       } catch {
         throw new Error("中继连接断开，请稍后重试");
