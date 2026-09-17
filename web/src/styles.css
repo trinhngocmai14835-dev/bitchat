@@ -87,6 +87,7 @@ h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 
 .invite-text { min-height: 78px; color: #9eabb4; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
 .invite-input { min-height: 116px; resize: vertical; }
 .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 11px; }
+.import-actions .wide { grid-column: 1 / -1; }
 .micro-note { margin-top: 12px; }
 .scanner-wrap { display: grid; place-items: center; min-height: 44px; margin-top: 10px; border-radius: 14px; background: #10161b; overflow: hidden; }
 .scanner-wrap video { width: 100%; max-height: 230px; object-fit: cover; }

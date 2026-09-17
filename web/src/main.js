@@ -108,6 +108,12 @@ function inviteFor(contact) {
   });
 }
 
+function inviteLinkFor(contact) {
+  const url = new URL(import.meta.env.BASE_URL || "/", window.location.origin);
+  url.searchParams.set("invite", inviteFor(contact));
+  return url.toString();
+}
+
 function render() {
   const contact = activeContact();
   const messages = contact ? messagesFor(state, contact.conversationId) : [];
@@ -199,19 +205,19 @@ function renderModal() {
       <p class="modal-description">对方导入后，还要把自己的回传邀请发回来。双方各导入一次，才能双向聊天。</p>
       <div class="qr-frame"><canvas id="invite-qr"></canvas></div>
       <textarea class="invite-text" readonly>${escapeHtml(invite)}</textarea>
-      <div class="modal-actions"><button class="primary-button" data-action="copy-invite">复制邀请</button><button class="secondary-button" data-action="share-invite">分享</button></div>
-      <p class="micro-note">二维码和文本只包含会话编号及公钥，不包含聊天记录。</p>
+      <div class="modal-actions"><button class="primary-button" data-action="copy-invite">复制邀请文本</button><button class="secondary-button" data-action="share-invite">分享链接</button></div>
+      <p class="micro-note">推荐点“分享链接”发给对方，对方点击链接即可自动导入；二维码和文本只包含会话编号及公钥，不包含聊天记录。</p>
     </section></div>`;
   }
   if (ui.modal.type === "import") {
     return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="import">
       <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
       <div class="modal-kicker">加入私聊</div><h2>导入对方邀请</h2>
-      <p class="modal-description">可以粘贴邀请文本，也可以用摄像头扫描二维码。</p>
+      <p class="modal-description">推荐直接点击对方发来的分享链接；也可以读取剪贴板，或用摄像头扫描二维码。</p>
       <textarea id="invite-input" class="invite-input" placeholder="粘贴 bitchat-pwa:v1: 开头的邀请文本"></textarea>
       <div class="scanner-wrap"><video id="scanner-video" playsinline muted hidden></video><p id="scanner-hint">摄像头仅用于本次扫描，不会上传画面。</p></div>
-      <div class="modal-actions"><button class="secondary-button" data-action="scan-invite">扫描二维码</button><button class="primary-button" data-action="import-confirm">导入并打开</button></div>
-      <p class="micro-note">如果 iPhone 浏览器不支持扫描，直接复制粘贴文本即可。</p>
+      <div class="modal-actions import-actions"><button class="secondary-button" data-action="read-clipboard">读取剪贴板</button><button class="secondary-button" data-action="scan-invite">扫描二维码</button><button class="primary-button wide" data-action="import-confirm">导入并打开</button></div>
+      <p class="micro-note">如果输入框不弹出“粘贴”，点“读取剪贴板”，或让对方重新发送分享链接。</p>
     </section></div>`;
   }
   return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="settings">
@@ -260,6 +266,7 @@ function bindEvents() {
   document.querySelectorAll("[data-action='chat-menu']").forEach((node) => node.addEventListener("click", confirmDeleteBoth));
   document.querySelectorAll("[data-action='copy-invite']").forEach((node) => node.addEventListener("click", copyInvite));
   document.querySelectorAll("[data-action='share-invite']").forEach((node) => node.addEventListener("click", shareInvite));
+  document.querySelectorAll("[data-action='read-clipboard']").forEach((node) => node.addEventListener("click", readClipboardInvite));
   document.querySelectorAll("[data-action='scan-invite']").forEach((node) => node.addEventListener("click", startScanner));
   document.querySelectorAll("[data-action='import-confirm']").forEach((node) => node.addEventListener("click", importInvite));
   document.querySelectorAll("[data-form='send']").forEach((form) => form.addEventListener("submit", sendMessage));
@@ -295,16 +302,29 @@ async function copyInvite() {
 async function shareInvite() {
   const contact = contactFor(state, ui.modal?.contactId);
   if (!contact) return;
-  const text = inviteFor(contact);
+  const link = inviteLinkFor(contact);
   if (navigator.share) {
-    await navigator.share({ title: "BitChat 私聊邀请", text });
+    await navigator.share({ title: "BitChat 私聊邀请", text: "点击打开 BitChat 并自动加入私聊", url: link });
   } else {
     try {
-      await copyText(text);
-      showNotice("当前浏览器不支持系统分享，邀请已复制");
+      await copyText(link);
+      showNotice("邀请链接已复制，发给对方即可");
     } catch {
-      showNotice("分享和复制均不可用，请长按文本框手动复制", "error");
+      showNotice("分享和复制均不可用，请复制邀请文本或使用二维码", "error");
     }
+  }
+}
+
+async function readClipboardInvite() {
+  try {
+    if (!navigator.clipboard?.readText) throw new Error("clipboard unavailable");
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) throw new Error("clipboard empty");
+    const input = document.querySelector("#invite-input");
+    if (input) input.value = text;
+    showNotice("已读取剪贴板，请点击“导入并打开”");
+  } catch {
+    showNotice("系统禁止读取剪贴板，请使用分享链接、二维码，或长按输入框选择“粘贴”", "error");
   }
 }
 
@@ -369,6 +389,23 @@ function importInvite() {
     connectActive();
   } catch (error) {
     showNotice(error.message || "邀请无效", "error");
+  }
+}
+
+function consumeInviteFromUrl() {
+  const raw = new URL(window.location.href).searchParams.get("invite");
+  if (!raw) return;
+  try {
+    const invite = parseInvite(raw);
+    if (invite.peer.id === state.identity.id) throw new Error("这是本机自己的邀请");
+    const contact = mergeInvite(state, invite);
+    saveState(state);
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete("invite");
+    window.history.replaceState(null, "", `${clean.pathname}${clean.search}${clean.hash}`);
+    ui.notice = { message: `已通过链接加入“${contact.nickname}”的私聊，请把本机回传邀请发给对方`, kind: "info" };
+  } catch (error) {
+    ui.notice = { message: error.message || "邀请链接无效", kind: "error" };
   }
 }
 
@@ -452,6 +489,7 @@ function connectActive() {
   relay.connect(state.relayUrl, contact.conversationId);
 }
 
+consumeInviteFromUrl();
 render();
 connectActive();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
