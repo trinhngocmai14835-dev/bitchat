@@ -37,10 +37,14 @@ jobs:
         if: failure()
         run: |
           if [ -f "$RUNNER_TEMP/periphery.log" ]; then
-            tail -n 120 "$RUNNER_TEMP/periphery.log" | while IFS= read -r line; do
+            payload=""
+            while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
-              echo "::error title=Periphery diagnostics::$line"
-            done
+              payload="${payload}${line}%0A"
+            done < <(grep -iE "error|fatal error|warning|dead code|unused|failed" "$RUNNER_TEMP/periphery.log" | tail -n 80 || true)
+            if [ -n "$payload" ]; then
+              echo "::error title=Periphery diagnostics::$payload"
+            fi
           fi

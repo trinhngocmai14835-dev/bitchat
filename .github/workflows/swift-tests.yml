@@ -99,12 +99,16 @@ jobs:
         if: failure()
         run: |
           if [ -f "$RUNNER_TEMP/app-tests.log" ]; then
-            tail -n 120 "$RUNNER_TEMP/app-tests.log" | while IFS= read -r line; do
+            payload=""
+            while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
-              echo "::error title=Swift test diagnostics::$line"
-            done
+              payload="${payload}${line}%0A"
+            done < <(grep -iE "error|failed|assert|expect|test case|test suite|✘" "$RUNNER_TEMP/app-tests.log" | tail -n 80 || true)
+            if [ -n "$payload" ]; then
+              echo "::error title=Swift test diagnostics::$payload"
+            fi
           fi
 
       # Read coverage before the serial benchmark command below rebuilds the
@@ -180,12 +184,16 @@ jobs:
         if: failure()
         run: |
           if [ -f "$RUNNER_TEMP/ios-build.log" ]; then
-            tail -n 120 "$RUNNER_TEMP/ios-build.log" | while IFS= read -r line; do
+            payload=""
+            while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
-              echo "::error title=iOS build diagnostics::$line"
-            done
+              payload="${payload}${line}%0A"
+            done < <(grep -iE "error|failed|failure reason|command compile|copystrings" "$RUNNER_TEMP/ios-build.log" | tail -n 80 || true)
+            if [ -n "$payload" ]; then
+              echo "::error title=iOS build diagnostics::$payload"
+            fi
           fi
 
       - name: Build macOS (universal, no signing)
@@ -295,12 +303,16 @@ jobs:
         if: failure()
         run: |
           if [ -f "$RUNNER_TEMP/ios-tests.log" ]; then
-            tail -n 120 "$RUNNER_TEMP/ios-tests.log" | while IFS= read -r line; do
+            payload=""
+            while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
-              echo "::error title=iOS test diagnostics::$line"
-            done
+              payload="${payload}${line}%0A"
+            done < <(grep -iE "error|failed|failure reason|assert|expect|test case|test suite|✘" "$RUNNER_TEMP/ios-tests.log" | tail -n 80 || true)
+            if [ -n "$payload" ]; then
+              echo "::error title=iOS test diagnostics::$payload"
+            fi
           fi
 
   # Blocking since the backlog reached zero (all violations fixed; rules the
