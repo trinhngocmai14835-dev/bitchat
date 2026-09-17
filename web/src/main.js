@@ -81,6 +81,7 @@ const relay = new RelayClient({
       if (!contact.peer) {
         contact.peer = peer;
         contact.nickname = peer.nickname || contact.nickname;
+        if (!state.activeConversationId) state.activeConversationId = contact.conversationId;
       }
       const result = applyPayload(
         state,
@@ -181,7 +182,10 @@ async function inviteApi(path, options = {}) {
   const response = await fetch(new URL(path, base), {
     ...options,
     cache: "no-store",
-    headers: { "content-type": "application/json", ...(options.headers || {}) },
+    headers: {
+      ...(options.body ? { "content-type": "application/json" } : {}),
+      ...(options.headers || {}),
+    },
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "数字邀请码不可用");
@@ -283,7 +287,7 @@ function renderChat(contact, messages) {
   return `<section class="chat-view">
     <div class="chat-actions">
       <button class="icon-button" data-action="back" aria-label="返回">‹</button>
-      <div class="chat-peer"><span class="avatar small">${escapeHtml((contact.nickname || "联").slice(0, 1))}</span><div><strong>${escapeHtml(contact.nickname)}</strong><small>${paired ? "已保存配对密钥" : "等待双方完成配对"}</small></div></div>
+      <div class="chat-peer"><span class="avatar small">${escapeHtml((contact.nickname || "联").slice(0, 1))}</span><div><strong>${escapeHtml(contact.nickname)}</strong><small>${paired ? "已保存配对密钥" : "等待对方发送首条消息"}</small></div></div>
       <button class="more-button" data-action="chat-menu" aria-label="聊天设置">•••</button>
     </div>
     ${!paired ? `<div class="pairing-banner"><strong>等待对方发来第一条消息</strong><span>对方输入你的数字邀请码后即可发送；收到消息后会自动完成配对。</span></div>` : ""}
@@ -344,6 +348,7 @@ function bindEvents() {
     relay.close();
     relayStatus = "未连接";
     render();
+    connectActive();
   }));
   document.querySelectorAll("[data-action='new-invite']").forEach((node) => node.addEventListener("click", newInvite));
   document.querySelectorAll("[data-action='import-invite']").forEach((node) => node.addEventListener("click", () => {
@@ -524,7 +529,7 @@ function saveSettings(event) {
 }
 
 function connectActive() {
-  const contact = activeContact();
+  const contact = activeContact() || state.contacts.find((item) => !item.peer) || null;
   relay.close();
   if (!contact) {
     relayStatus = "未连接";
@@ -535,6 +540,15 @@ function connectActive() {
   // 发起方在收到对方第一条消息前没有 peer，但仍要连接中继才能自动完成配对。
   relay.connect(state.relayUrl, contact.conversationId);
 }
+
+window.addEventListener("online", () => {
+  if (activeContact() || state.contacts.some((contact) => !contact.peer)) connectActive();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && (activeContact() || state.contacts.some((contact) => !contact.peer))) {
+    connectActive();
+  }
+});
 
 render();
 connectActive();

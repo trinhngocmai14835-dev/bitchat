@@ -26,9 +26,10 @@ test("两端可以用配对密钥加密并验证私聊消息", async () => {
     generation,
     payload: { type: "message", body: "你好，Bob" },
   });
+  assert.equal(envelope.sender.id, alice.id);
   const payload = await openEnvelope({
     identity: bob,
-    peer: { id: alice.id, exchangePublicJwk: alice.exchangePublicJwk, signingPublicJwk: alice.signingPublicJwk },
+    peer: envelope.sender,
     envelope,
   });
   assert.deepEqual(payload, { type: "message", body: "你好，Bob" });
@@ -37,7 +38,7 @@ test("两端可以用配对密钥加密并验证私聊消息", async () => {
   const tampered = { ...envelope, ciphertext: `${replacement}${envelope.ciphertext.slice(1)}` };
   await assert.rejects(() => openEnvelope({
     identity: bob,
-    peer: { id: alice.id, exchangePublicJwk: alice.exchangePublicJwk, signingPublicJwk: alice.signingPublicJwk },
+    peer: envelope.sender,
     envelope: tampered,
   }));
 });

@@ -53,7 +53,7 @@ npx wrangler deploy --config relay/wrangler.toml
 2. 打开 `Actions`，等待 **Deploy PWA to GitHub Pages** 变绿。
 3. 在两部 iPhone 的 Safari 打开 `https://trinhngocmai14835-dev.github.io/bitchat/`，可通过“分享 -> 添加到主屏幕”安装。
 4. 两部手机各设置一个本机名称。A 创建邀请并发送 6 位数字邀请码，B 输入数字后即可直接发送第一条消息，A 收到后会自动完成配对。
-5. 保持默认的 `nostr://public` 中继即可开始远程聊天。右上角菜单里的“删除双方记录”会向对方发送加密删除指令。
+5. 保持默认的项目 HTTPS 中继即可开始远程聊天。右上角菜单里的“删除双方记录”会向对方发送加密删除指令。
 
 ## 配对方式
 
