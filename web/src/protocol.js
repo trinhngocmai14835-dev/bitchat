@@ -141,6 +141,7 @@ function envelopeHeader(envelope) {
     messageId: envelope.messageId,
     senderId: envelope.senderId,
     v: envelope.v,
+    ...(envelope.sender ? { sender: envelope.sender } : {}),
   };
 }
 
@@ -159,6 +160,7 @@ export async function sealEnvelope({ identity, peer, conversationId, generation,
     conversationId,
     generation,
     senderId: identity.id,
+    sender: publicIdentity(identity),
     messageId: randomId(),
     createdAt: Date.now(),
     iv: bytesToBase64Url(crypto.getRandomValues(new Uint8Array(12))),

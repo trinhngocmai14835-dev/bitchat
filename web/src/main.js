@@ -73,9 +73,15 @@ const relay = new RelayClient({
   onEnvelope: async (envelope) => {
     if (!state || envelope.senderId === state.identity.id) return;
     const contact = contactFor(state, envelope.conversationId);
-    if (!contact?.peer || envelope.generation !== contact.generation) return;
+    if (!contact || envelope.generation !== contact.generation) return;
+    const peer = contact.peer || peerFromEnvelope(envelope);
+    if (!peer) return;
     try {
-      const payload = await openEnvelope({ identity: state.identity, peer: contact.peer, envelope });
+      const payload = await openEnvelope({ identity: state.identity, peer, envelope });
+      if (!contact.peer) {
+        contact.peer = peer;
+        contact.nickname = peer.nickname || contact.nickname;
+      }
       const result = applyPayload(
         state,
         envelope.conversationId,
@@ -85,7 +91,7 @@ const relay = new RelayClient({
         envelope.senderId,
         envelope.createdAt,
       );
-      if (result.changed) {
+      if (result.changed || contact.peer === peer) {
         saveState(state);
         render();
       }
@@ -122,6 +128,17 @@ function showNotice(message, kind = "info") {
 
 function activeContact() {
   return contactFor(state, state.activeConversationId);
+}
+
+function peerFromEnvelope(envelope) {
+  const sender = envelope?.sender;
+  if (sender?.id !== envelope?.senderId || !sender.exchangePublicJwk || !sender.signingPublicJwk) return null;
+  return {
+    id: sender.id,
+    nickname: sender.nickname || "联系人",
+    exchangePublicJwk: sender.exchangePublicJwk,
+    signingPublicJwk: sender.signingPublicJwk,
+  };
 }
 
 function inviteFor(contact) {
@@ -235,7 +252,7 @@ function renderHome(displayName) {
   return `<section class="home-view">
     <div class="hero-card">
       <span class="hero-icon">⌁</span>
-      <div><h2>只和指定的人聊天</h2><p>不注册账号。双方互相导入一次邀请，就能通过互联网私聊。</p></div>
+      <div><h2>只和指定的人聊天</h2><p>不注册账号。对方输入一次数字邀请码，就能通过互联网私聊。</p></div>
     </div>
     <div class="identity-card">
       <div><span class="label">固定本机身份</span><strong>${escapeHtml(displayName)}</strong><small>身份密钥保存在本机，除非主动清除网站数据</small></div>
@@ -256,7 +273,7 @@ function renderChat(contact, messages) {
   const messageMarkup = messages.length ? messages.map((message) => {
     const mine = message.senderId === state.identity.id;
     return `<div class="message-row ${mine ? "mine" : "theirs"}"><div class="message-bubble">${escapeHtml(message.body)}<time>${formatTime(message.createdAt)}</time></div></div>`;
-  }).join("") : `<div class="empty-chat"><span>✦</span><strong>这是你们的私密空间</strong><p>${paired ? "消息经过加密后才会离开设备。" : "先让对方也导入你的回传邀请。"}</p></div>`;
+  }).join("") : `<div class="empty-chat"><span>✦</span><strong>这是你们的私密空间</strong><p>${paired ? "消息经过加密后才会离开设备。" : "等待对方发送第一条消息，收到后会自动完成配对。"}</p></div>`;
 
   return `<section class="chat-view">
     <div class="chat-actions">
@@ -264,7 +281,7 @@ function renderChat(contact, messages) {
       <div class="chat-peer"><span class="avatar small">${escapeHtml((contact.nickname || "联").slice(0, 1))}</span><div><strong>${escapeHtml(contact.nickname)}</strong><small>${paired ? "已保存配对密钥" : "等待双方完成配对"}</small></div></div>
       <button class="more-button" data-action="chat-menu" aria-label="聊天设置">•••</button>
     </div>
-    ${!paired ? `<div class="pairing-banner"><strong>还差一步</strong><span>请把本机回传邀请发给对方，再由对方导入。</span><button data-action="show-invite" data-contact="${escapeHtml(contact.conversationId)}">显示我的邀请</button></div>` : ""}
+    ${!paired ? `<div class="pairing-banner"><strong>等待对方发来第一条消息</strong><span>对方输入你的数字邀请码后即可发送；收到消息后会自动完成配对。</span></div>` : ""}
     <div class="messages" aria-live="polite">${messageMarkup}</div>
     <form class="composer" data-form="send">
       <input name="body" autocomplete="off" maxlength="2000" placeholder="${paired ? "写点什么…" : "完成配对后才能发送"}" ${paired ? "" : "disabled"} />
@@ -281,10 +298,10 @@ function renderModal() {
     return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="invite">
       <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
       <div class="modal-kicker">数字配对</div><h2>把 6 位数字发给对方</h2>
-      <p class="modal-description">对方在“导入邀请”中输入这 6 位数字即可加入。对方也需要把自己的数字发回给你。</p>
+      <p class="modal-description">对方在“导入邀请”中输入这 6 位数字后，就可以直接发送第一条消息。</p>
       <div class="invite-code-card"><span>6 位数字邀请码 · 10 分钟有效</span><strong>${escapeHtml(inviteCode || "生成中…")}</strong></div>
       <div class="modal-actions invite-actions"><button class="primary-button wide" data-action="copy-code" ${inviteCode ? "" : "disabled"}>复制数字邀请码</button></div>
-      <p class="micro-note">邀请码只短期有效，不是账号，也不会暴露聊天内容。</p>
+      <p class="micro-note">邀请码只短期有效，不是账号，也不会暴露聊天内容。对方发来第一条消息后会自动完成配对。</p>
     </section></div>`;
   }
   if (ui.modal.type === "import") {
@@ -428,7 +445,7 @@ function completeImport(invite) {
     const contact = mergeInvite(state, invite);
     saveState(state);
     closeModal();
-    showNotice(`已加入与“${contact.nickname}”的私聊，请把本机邀请回传给对方`);
+    showNotice(`已加入与“${contact.nickname}”的私聊，现在可以直接发送消息`);
     connectActive();
 }
 
@@ -503,12 +520,13 @@ function saveSettings(event) {
 function connectActive() {
   const contact = activeContact();
   relay.close();
-  if (!contact?.peer) {
-    relayStatus = contact ? "等待配对" : "未连接";
+  if (!contact) {
+    relayStatus = "未连接";
     const node = document.querySelector("[data-relay-status]");
     if (node) node.textContent = relayStatus;
     return;
   }
+  // 发起方在收到对方第一条消息前没有 peer，但仍要连接中继才能自动完成配对。
   relay.connect(state.relayUrl, contact.conversationId);
 }
 
