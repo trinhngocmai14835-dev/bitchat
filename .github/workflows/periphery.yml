@@ -29,22 +29,4 @@ jobs:
         # Config comes from .periphery.yml; known findings (mostly iOS-only
         # code invisible to a macOS scan) are suppressed by the committed
         # baseline. --strict fails the step when NEW dead code appears.
-        run: |
-          exec > >(tee "$RUNNER_TEMP/periphery.log") 2>&1
-          periphery scan --strict --disable-update-check
-
-      - name: Surface Periphery diagnostics
-        if: failure()
-        run: |
-          if [ -f "$RUNNER_TEMP/periphery.log" ]; then
-            payload=""
-            while IFS= read -r line; do
-              line=${line//'%'/'%25'}
-              line=${line//$'\r'/'%0D'}
-              line=${line//$'\n'/'%0A'}
-              payload="${payload}${line}%0A"
-            done < <(grep -iE "error:|fatal error|warning|dead code|unused|failed:" "$RUNNER_TEMP/periphery.log" | head -n 80 || true)
-            if [ -n "$payload" ]; then
-              echo "::error title=Periphery diagnostics::$payload"
-            fi
-          fi
+        run: periphery scan --strict --disable-update-check

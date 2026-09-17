@@ -1,4 +1,5 @@
 #if os(iOS)
+import BitFoundation
 import SwiftUI
 
 /// The focused iOS entry screen for the account-free private-chat build.
