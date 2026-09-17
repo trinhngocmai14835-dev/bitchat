@@ -6,7 +6,7 @@
 
 - 首次打开自动生成本机身份，不需要账号或注册。
 - 双方互相导入邀请；推荐发送分享链接，对方点击即可自动导入，也可以读取剪贴板或使用摄像头扫描 QR 邀请。
-- 使用浏览器 Web Crypto 的 P-256 ECDH + ECDSA + AES-GCM；默认通过无需账号的公开 Nostr 中继发送加密消息包，中继不能读取聊天正文。也可以在设置里换成自己的 `wss://` 中继。
+- 使用浏览器 Web Crypto 的 P-256 ECDH + ECDSA + AES-GCM；开发版可用公开 Nostr 中继，正式使用建议部署项目自带的 Cloudflare Durable Object 中继。中继只能转发加密消息包，不能读取聊天正文。
 - 任意一方可以执行“删除双方记录”。删除指令也会加密发送给对方；双方客户端收到后清空本地记录并切换到新的聊天代次，旧中继消息不会重新显示。
 - Service Worker 缓存应用外壳，支持添加到 iPhone 主屏幕。
 
@@ -34,7 +34,18 @@ npm run dev -- --host 0.0.0.0
 
 本地电脑访问 `http://localhost:5173`，中继地址保持默认的 `ws://localhost:8787/ws`。手机要访问电脑上的开发服务，需要把中继地址改成电脑局域网 IP；但 iPhone 摄像头和 Service Worker 的完整能力需要 HTTPS。
 
-正式部署到 GitHub Pages 后，生产构建会默认使用 `nostr://public`，因此不需要先准备自己的服务器即可做两部 iPhone 的远程联调。公开中继会看到会话编号、时间和加密包大小等元数据；如果这也不接受，就部署 `web/relay/` 并在设置里改成自己的 `wss://` 地址。
+正式部署到 GitHub Pages 或 Cloudflare Pages 后，生产构建会默认使用 `nostr://public`，因此可以先做联调。由于部分网络无法连接公开 Nostr 中继，正式使用建议部署 `web/relay/` 下的 Cloudflare Worker，然后在设置里填入它的 `wss://你的中继域名/ws` 地址；公开中继和自建中继都只能看到会话编号、时间和加密包大小等元数据。
+
+## 部署 Cloudflare 专用中继
+
+在已登录 Cloudflare 的电脑上执行：
+
+```text
+npx wrangler login
+npx wrangler deploy --config relay/wrangler.toml
+```
+
+部署后把 Cloudflare 显示的 Worker 地址改成 `wss://.../ws`，填入 PWA 的“设置 -> 中继地址”。网页客户端会自动把会话编号附加到连接地址；中继按会话隔离并保存最近 500 条加密消息，最多保留 7 天。
 
 ## 用 iPhone 测试
 

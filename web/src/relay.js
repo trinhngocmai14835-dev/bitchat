@@ -21,6 +21,7 @@ export class RelayClient {
     this.reconnectTimer = null;
     this.closedByUser = false;
     this.transport = null;
+    this.openPromise = null;
   }
 
   connect(url, conversationId) {
@@ -44,12 +45,19 @@ export class RelayClient {
     this.transport = "websocket";
     this.onStatus("连接中");
     try {
-      this.socket = new WebSocket(this.url);
-      this.socket.addEventListener("open", () => {
-        this.onStatus("已连接");
-        this.socket.send(JSON.stringify({ type: "hello", conversationId: this.conversationId }));
+      const endpoint = new URL(this.url);
+      endpoint.searchParams.set("conversationId", this.conversationId);
+      const socket = new WebSocket(endpoint.toString());
+      this.socket = socket;
+      this.openPromise = new Promise((resolve, reject) => {
+        socket.addEventListener("open", resolve, { once: true });
       });
-      this.socket.addEventListener("message", (event) => {
+      socket.addEventListener("open", () => {
+        if (this.socket !== socket) return;
+        this.onStatus("已连接");
+        socket.send(JSON.stringify({ type: "hello", conversationId: this.conversationId }));
+      });
+      socket.addEventListener("message", (event) => {
         try {
           const packet = JSON.parse(event.data);
           if (packet.type === "envelope" && packet.envelope) this.onEnvelope(packet.envelope);
@@ -60,14 +68,18 @@ export class RelayClient {
           // Ignore malformed relay frames.
         }
       });
-      this.socket.addEventListener("close", () => {
+      socket.addEventListener("close", () => {
+        if (this.socket !== socket) return;
         this.socket = null;
+        this.openPromise = null;
         if (!this.closedByUser) {
           this.onStatus("已断开，稍后重连");
           this.scheduleReconnect();
         }
       });
-      this.socket.addEventListener("error", () => this.onStatus("中继连接错误"));
+      socket.addEventListener("error", () => {
+        if (this.socket === socket) this.onStatus("中继连接错误");
+      });
     } catch {
       this.onStatus("中继地址无效");
     }
@@ -124,7 +136,18 @@ export class RelayClient {
       return;
     }
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new Error("尚未连接中继服务器");
+      if (!this.url) throw new Error("尚未配置中继服务器");
+      this.connect(this.url, this.conversationId);
+      const openPromise = this.openPromise;
+      if (!openPromise) throw new Error("中继地址无效");
+      try {
+        await Promise.race([
+          openPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error("中继连接超时，请稍后重试")), 8000)),
+        ]);
+      } catch {
+        throw new Error("中继连接断开，请稍后重试");
+      }
     }
     this.socket.send(JSON.stringify({ type: "publish", envelope }));
   }
@@ -139,6 +162,7 @@ export class RelayClient {
   closeCurrentTransport() {
     if (this.socket) this.socket.close();
     this.socket = null;
+    this.openPromise = null;
     if (this.subscription) this.subscription.close();
     this.subscription = null;
     this.transport = null;
