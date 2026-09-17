@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { webcrypto } from "node:crypto";
+import { finalizeEvent, verifyEvent } from "nostr-tools";
 
 globalThis.crypto ??= webcrypto;
 globalThis.btoa ??= (value) => Buffer.from(value, "binary").toString("base64");
 globalThis.atob ??= (value) => Buffer.from(value, "base64").toString("binary");
 
-const { encodeInvite, generateIdentity, openEnvelope, parseInvite, sealEnvelope } = await import("../src/protocol.js");
+const { base64UrlToBytes, encodeInvite, generateIdentity, openEnvelope, parseInvite, sealEnvelope } = await import("../src/protocol.js");
 const { addMessage, applyDelete, applyPayload } = await import("../src/state.js");
 
 function contactFor(identity, peer, conversationId, generation) {
@@ -73,4 +74,15 @@ test("邀请文本只携带配对所需的公开信息", async () => {
   assert.equal(invite.peer.nickname, "Alice");
   assert.equal(invite.peer.exchangePrivateJwk, undefined);
   assert.equal(invite.peer.signingPrivateJwk, undefined);
+});
+
+test("无需账号生成的公开中继密钥可以签署 Nostr 事件", async () => {
+  const identity = await generateIdentity("Relay test");
+  const event = finalizeEvent({
+    kind: 1059,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [["d", "conversation-test-4"], ["t", "bitchat-pwa-v1"]],
+    content: "{}",
+  }, base64UrlToBytes(identity.nostrSecretKey));
+  assert.equal(verifyEvent(event), true);
 });
