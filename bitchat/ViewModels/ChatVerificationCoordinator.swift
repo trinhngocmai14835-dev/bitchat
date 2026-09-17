@@ -85,14 +85,6 @@ extension ChatViewModel: ChatVerificationContext {
     // `ChatViewModel` members. The members below flatten nested service
     // accesses into intent-named calls.
 
-    func addFavorite(noiseKey: Data, nostrPublicKey: String?, nickname: String) {
-        peerIdentityCoordinator.addFavorite(
-            noiseKey: noiseKey,
-            nostrPublicKey: nostrPublicKey,
-            nickname: nickname
-        )
-    }
-
     func persistedVerifiedFingerprints() -> Set<String> {
         identityManager.getVerifiedFingerprints()
     }
