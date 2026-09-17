@@ -78,6 +78,11 @@ private final class MockChatVerificationContext: ChatVerificationContext {
     var unifiedPeers: [BitchatPeer] = []
     var unifiedFavorites: [BitchatPeer] = []
     private(set) var stablePeerIDCache: [PeerID: PeerID] = [:]
+    private(set) var addedFavorites: [(noiseKey: Data, nostrPublicKey: String?, nickname: String)] = []
+
+    func addFavorite(noiseKey: Data, nostrPublicKey: String?, nickname: String) {
+        addedFavorites.append((noiseKey, nostrPublicKey, nickname))
+    }
 
     func unifiedPeer(for peerID: PeerID) -> BitchatPeer? {
         unifiedPeers.first { $0.peerID == peerID }
@@ -152,6 +157,30 @@ private func makeVerifyChallengeTLV(noiseKeyHex: String, nonceA: Data) -> Data {
     tlv.append(UInt8(nonceA.count))
     tlv.append(nonceA)
     return tlv
+}
+
+@Test("QR invite adds a remote contact without a nearby mesh peer")
+@MainActor
+func qrInviteAddsRemoteContactWithoutMeshPeer() {
+    let context = MockChatVerificationContext()
+    let coordinator = ChatVerificationCoordinator(context: context)
+    let noiseKey = Data(repeating: 0x2A, count: 32)
+    let qr = VerificationService.VerificationQR(
+        v: 1,
+        noiseKeyHex: noiseKey.hexEncodedString(),
+        signKeyHex: Data(repeating: 0x3B, count: 32).hexEncodedString(),
+        npub: "npub1remotecontact",
+        nickname: "Alice",
+        ts: 1,
+        nonceB64: "nonce",
+        sigHex: "signature"
+    )
+
+    #expect(coordinator.beginQRVerification(with: qr))
+    #expect(context.addedFavorites.count == 1)
+    #expect(context.addedFavorites[0].noiseKey == noiseKey)
+    #expect(context.addedFavorites[0].nostrPublicKey == "npub1remotecontact")
+    #expect(context.addedFavorites[0].nickname == "Alice")
 }
 
 private func makeVerificationQR(noiseKeyHex: String) -> VerificationService.VerificationQR {

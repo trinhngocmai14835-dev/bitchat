@@ -408,6 +408,11 @@ struct VerificationSheetView: View {
     @State private var showingScanner = false
     @ThemedPalette private var palette
 
+    init(isPresented: Binding<Bool>, initiallyShowingScanner: Bool = false) {
+        self._isPresented = isPresented
+        self._showingScanner = State(initialValue: initiallyShowingScanner)
+    }
+
     private var accentColor: Color { palette.accent }
     private var boxColor: Color { palette.secondary.opacity(0.1) }
 

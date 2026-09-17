@@ -458,24 +458,24 @@ struct ContentView: View {
     @ViewBuilder
     private var mainContent: some View {
         if usesGlassLayout {
-            publicMessageList
+            homeContent
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    headerView
+                    topChrome
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if selectedPrivatePeerID == nil {
+                    if shouldShowPublicComposer {
                         composerView
                     }
                 }
         } else {
             VStack(spacing: 0) {
-                headerView
+                topChrome
 
                 Divider()
 
                 GeometryReader { geometry in
                     VStack(spacing: 0) {
-                        publicMessageList
+                        homeContent
                             .background(palette.background)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
@@ -484,7 +484,7 @@ struct ContentView: View {
 
                 Divider()
 
-                if selectedPrivatePeerID == nil {
+                if shouldShowPublicComposer {
                     composerView
                 }
             }
@@ -548,6 +548,40 @@ struct ContentView: View {
             showSidebar: $showSidebar,
             isTextFieldFocused: $isTextFieldFocused
         )
+    }
+
+    @ViewBuilder
+    private var homeContent: some View {
+        #if os(iOS)
+        if selectedPrivatePeerID == nil {
+            PrivateContactsHomeView()
+        } else {
+            publicMessageList
+        }
+        #else
+        publicMessageList
+        #endif
+    }
+
+    @ViewBuilder
+    private var topChrome: some View {
+        #if os(iOS)
+        if selectedPrivatePeerID == nil {
+            EmptyView()
+        } else {
+            headerView
+        }
+        #else
+        headerView
+        #endif
+    }
+
+    private var shouldShowPublicComposer: Bool {
+        #if os(iOS)
+        false
+        #else
+        selectedPrivatePeerID == nil
+        #endif
     }
 
     private var composerView: some View {

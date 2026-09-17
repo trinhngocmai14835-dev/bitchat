@@ -39,6 +39,8 @@ protocol ChatVerificationContext: AnyObject {
     // MARK: Peers
     var unifiedPeers: [BitchatPeer] { get }
     var unifiedFavorites: [BitchatPeer] { get }
+    /// Persists a QR-introduced contact even when the peer is not nearby.
+    func addFavorite(noiseKey: Data, nostrPublicKey: String?, nickname: String)
     /// The peer's current entry in the unified peer service, if known.
     func unifiedPeer(for peerID: PeerID) -> BitchatPeer?
     func unifiedFingerprint(for peerID: PeerID) -> String?
@@ -82,6 +84,14 @@ extension ChatViewModel: ChatVerificationContext {
     // shared requirements with the other contexts or satisfied by existing
     // `ChatViewModel` members. The members below flatten nested service
     // accesses into intent-named calls.
+
+    func addFavorite(noiseKey: Data, nostrPublicKey: String?, nickname: String) {
+        peerIdentityCoordinator.addFavorite(
+            noiseKey: noiseKey,
+            nostrPublicKey: nostrPublicKey,
+            nickname: nickname
+        )
+    }
 
     func persistedVerifiedFingerprints() -> Set<String> {
         identityManager.getVerifiedFingerprints()
@@ -282,10 +292,25 @@ final class ChatVerificationCoordinator {
 
     func beginQRVerification(with qr: VerificationService.VerificationQR) -> Bool {
         let targetNoise = qr.noiseKeyHex.lowercased()
+        guard let noiseKey = Data(hexString: qr.noiseKeyHex), !noiseKey.isEmpty else {
+            return false
+        }
+
+        // A QR invite is also a complete remote-contact introduction. The
+        // old verification flow required the peer to be visible over BLE,
+        // which made long-distance Nostr-only contacts impossible. Persist
+        // the signed identity as a favorite so NostrTransport can address the
+        // contact by its stored public keys even when no mesh peer exists.
         guard let peer = context.unifiedPeers.first(where: {
             $0.noisePublicKey.hexEncodedString().lowercased() == targetNoise
         }) else {
-            return false
+            guard let npub = qr.npub, !npub.isEmpty else { return false }
+            context.addFavorite(
+                noiseKey: noiseKey,
+                nostrPublicKey: npub,
+                nickname: qr.nickname
+            )
+            return true
         }
 
         let peerID = peer.peerID
