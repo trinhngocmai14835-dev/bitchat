@@ -1,7 +1,7 @@
 import { randomId } from "./protocol.js";
 
 export const STORAGE_KEY = "bitchat-pwa-state-v1";
-export const PRODUCTION_RELAY_URL = "wss://bitchat-private-relay.soft-api-7mskfl.workers.dev/ws";
+export const PRODUCTION_RELAY_URL = "https://bitchat-private-relay.soft-api-7mskfl.workers.dev";
 
 export function defaultRelayUrl() {
   if (typeof location === "undefined") return "ws://localhost:8787/ws";

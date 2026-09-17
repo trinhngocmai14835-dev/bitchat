@@ -228,7 +228,7 @@ function renderModal() {
   return `<div class="modal-layer" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true" data-modal="settings">
     <button class="modal-close" data-action="close-modal" aria-label="关闭">×</button>
     <div class="modal-kicker">本机设置</div><h2>设置</h2>
-    <form data-form="settings"><label>本机名称<input name="nickname" maxlength="32" value="${escapeHtml(state.identity.nickname || "")}" placeholder="例如：我的 iPhone" /></label><label>中继地址<input name="relayUrl" value="${escapeHtml(state.relayUrl || "")}" placeholder="nostr://public 或 wss://你的域名/ws" /></label><p class="micro-note">默认使用无需账号的公开 Nostr 中继；也可以改成自己的 wss:// 中继。本地开发可用 ws://localhost:8787/ws。</p><button class="primary-button" type="submit">保存设置</button></form>
+    <form data-form="settings"><label>本机名称<input name="nickname" maxlength="32" value="${escapeHtml(state.identity.nickname || "")}" placeholder="例如：我的 iPhone" /></label><label>中继地址<input name="relayUrl" value="${escapeHtml(state.relayUrl || "")}" placeholder="https://你的中继域名 或 wss://你的域名/ws" /></label><p class="micro-note">默认使用项目专用的 HTTPS 中继；也可以改成自己的 HTTPS/WSS 中继。本地开发可用 ws://localhost:8787/ws。</p><button class="primary-button" type="submit">保存设置</button></form>
   </section></div>`;
 }
 

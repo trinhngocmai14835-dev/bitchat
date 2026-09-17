@@ -26,6 +26,8 @@ function jsonResponse(body, status = 200) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "content-type",
     },
   });
 }
@@ -33,9 +35,10 @@ function jsonResponse(body, status = 200) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: jsonResponse({}).headers });
     if (url.pathname === "/health") return jsonResponse({ ok: true, service: "bitchat-relay" });
-    if (url.pathname !== "/ws") return jsonResponse({ error: "BitChat relay: use WebSocket /ws" }, 404);
-    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+    if (!["/ws", "/poll", "/publish"].includes(url.pathname)) return jsonResponse({ error: "BitChat relay: use /poll, /publish, or WebSocket /ws" }, 404);
+    if (url.pathname === "/ws" && request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return jsonResponse({ error: "WebSocket upgrade required" }, 426);
     }
 
@@ -53,11 +56,30 @@ export class ChatRoom extends DurableObject {
   }
 
   async fetch(request) {
-    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-      return jsonResponse({ error: "WebSocket upgrade required" }, 426);
-    }
     const conversationId = new URL(request.url).searchParams.get("conversationId");
     if (!validConversationId(conversationId)) return jsonResponse({ error: "invalid conversation" }, 400);
+
+    const url = new URL(request.url);
+    if (url.pathname === "/poll" && request.method === "GET") {
+      return jsonResponse({ envelopes: await this.messages() });
+    }
+    if (url.pathname === "/publish" && request.method === "POST") {
+      const raw = await request.text();
+      if (new TextEncoder().encode(raw).byteLength > MAX_ENVELOPE_BYTES) return jsonResponse({ error: "packet too large" }, 413);
+      try {
+        const packet = JSON.parse(raw);
+        if (!validEnvelope(packet.envelope) || packet.envelope.conversationId !== conversationId) {
+          return jsonResponse({ error: "invalid envelope" }, 400);
+        }
+        await this.storeEnvelope(packet.envelope);
+        return jsonResponse({ ok: true, messageId: packet.envelope.messageId });
+      } catch {
+        return jsonResponse({ error: "invalid json" }, 400);
+      }
+    }
+    if (url.pathname !== "/ws" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+      return jsonResponse({ error: "WebSocket upgrade required" }, 426);
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -101,16 +123,7 @@ export class ChatRoom extends DurableObject {
       return;
     }
 
-    const messages = await this.messages();
-    if (!messages.some((entry) => entry.messageId === envelope.messageId)) {
-      messages.push(envelope);
-      await this.ctx.storage.put("messages", messages.slice(-MAX_ROOM_MESSAGES));
-      for (const client of this.ctx.getWebSockets()) {
-        if (client !== socket && client.readyState === 1) {
-          client.send(JSON.stringify({ type: "envelope", envelope }));
-        }
-      }
-    }
+    await this.storeEnvelope(envelope, socket);
     socket.send(JSON.stringify({ type: "published", messageId: envelope.messageId }));
   }
 
@@ -126,6 +139,18 @@ export class ChatRoom extends DurableObject {
       : [];
     if (Array.isArray(stored) && messages.length !== stored.length) await this.ctx.storage.put("messages", messages);
     return messages;
+  }
+
+  async storeEnvelope(envelope, senderSocket = null) {
+    const messages = await this.messages();
+    if (messages.some((entry) => entry.messageId === envelope.messageId)) return;
+    messages.push(envelope);
+    await this.ctx.storage.put("messages", messages.slice(-MAX_ROOM_MESSAGES));
+    for (const client of this.ctx.getWebSockets()) {
+      if (client !== senderSocket && client.readyState === 1) {
+        client.send(JSON.stringify({ type: "envelope", envelope }));
+      }
+    }
   }
 
   sendError(socket, message) {

@@ -45,7 +45,7 @@ npx wrangler login
 npx wrangler deploy --config relay/wrangler.toml
 ```
 
-部署后把 Cloudflare 显示的 Worker 地址改成 `wss://.../ws`，填入 PWA 的“设置 -> 中继地址”。网页客户端会自动把会话编号附加到连接地址；中继按会话隔离并保存最近 500 条加密消息，最多保留 7 天。
+部署后把 Cloudflare 显示的 Worker 地址（`https://...`）填入 PWA 的“设置 -> 中继地址”。HTTPS 模式每 3 秒轮询一次，不依赖 WebSocket 长连接；也支持填入 `wss://.../ws` 使用实时模式。网页客户端会自动把会话编号附加到中继请求；中继按会话隔离并保存最近 500 条加密消息，最多保留 7 天。
 
 ## 用 iPhone 测试
 

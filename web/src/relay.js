@@ -19,6 +19,8 @@ export class RelayClient {
     this.url = "";
     this.conversationId = "";
     this.reconnectTimer = null;
+    this.pollTimer = null;
+    this.polling = false;
     this.closedByUser = false;
     this.transport = null;
     this.openPromise = null;
@@ -38,7 +40,39 @@ export class RelayClient {
       this.connectNostr();
       return;
     }
+    if (/^https?:\/\//i.test(this.url)) {
+      this.connectHttpPolling();
+      return;
+    }
     this.connectWebSocket();
+  }
+
+  connectHttpPolling() {
+    this.transport = "http";
+    this.polling = true;
+    this.onStatus("连接中");
+    this.pollOnce();
+  }
+
+  async pollOnce() {
+    if (!this.polling || this.closedByUser) return;
+    try {
+      const endpoint = new URL(this.url);
+      endpoint.pathname = "/poll";
+      endpoint.search = "";
+      endpoint.searchParams.set("conversationId", this.conversationId);
+      const response = await fetch(endpoint, { cache: "no-store" });
+      if (!response.ok) throw new Error(`poll ${response.status}`);
+      const packet = await response.json();
+      this.onStatus("已连接");
+      if (Array.isArray(packet.envelopes)) {
+        for (const envelope of packet.envelopes) this.onEnvelope(envelope);
+      }
+    } catch {
+      if (!this.closedByUser) this.onStatus("中继连接错误，稍后重试");
+    } finally {
+      if (this.polling && !this.closedByUser) this.pollTimer = setTimeout(() => this.pollOnce(), 3000);
+    }
   }
 
   connectWebSocket() {
@@ -120,6 +154,20 @@ export class RelayClient {
   }
 
   async publish(envelope) {
+    if (this.transport === "http") {
+      const endpoint = new URL(this.url);
+      endpoint.pathname = "/publish";
+      endpoint.search = "";
+      endpoint.searchParams.set("conversationId", this.conversationId);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envelope }),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("中继发送失败，请稍后重试");
+      return;
+    }
     if (this.transport === "nostr") {
       if (!this.identity?.nostrSecretKey) throw new Error("本机公开中继密钥不存在，请重新生成本机身份");
       const event = finalizeEvent(
@@ -160,6 +208,9 @@ export class RelayClient {
   }
 
   closeCurrentTransport() {
+    this.polling = false;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
     if (this.socket) this.socket.close();
     this.socket = null;
     this.openPromise = null;
