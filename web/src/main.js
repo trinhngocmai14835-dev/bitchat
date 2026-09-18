@@ -58,7 +58,25 @@ if (!state.identity.nostrSecretKey) {
   state.identity.nostrSecretKey = createNostrSecretKey();
   saveState(state);
 }
-if (!state.relayUrl || state.relayUrl === "nostr://public" || state.relayUrl.startsWith(PRODUCTION_RELAY_URL)) {
+const savedRelayUrl = typeof state.relayUrl === "string" ? state.relayUrl.trim() : "";
+let shouldUseDefaultRelay = !savedRelayUrl
+  || savedRelayUrl === "nostr://public"
+  || savedRelayUrl.startsWith(PRODUCTION_RELAY_URL);
+try {
+  const expectedRelay = new URL(defaultRelayUrl());
+  const configuredRelay = new URL(state.relayUrl || "", window.location.href);
+  const expectedPath = expectedRelay.pathname.replace(/\/+$/, "");
+  const configuredPath = configuredRelay.pathname.replace(/\/+$/, "");
+  if (expectedRelay.origin === window.location.origin
+    && expectedPath === "/relay"
+    && configuredRelay.origin === expectedRelay.origin
+    && configuredPath !== "/relay") {
+    shouldUseDefaultRelay = true;
+  }
+} catch {
+  // Keep a valid legacy relay when it cannot be normalized here.
+}
+if (shouldUseDefaultRelay) {
   state.relayUrl = defaultRelayUrl();
   saveState(state);
 }
@@ -160,18 +178,28 @@ function inviteCodeFor(contact) {
 }
 
 function relayApiBase() {
-  if (!state.relayUrl || state.relayUrl === "nostr://public") {
-    const fallback = new URL(defaultRelayUrl());
-    if (fallback.protocol === "ws:") fallback.protocol = "http:";
-    if (fallback.protocol === "wss:") fallback.protocol = "https:";
-    return ["http:", "https:"].includes(fallback.protocol) ? `${fallback.origin}/` : null;
+  const fallback = new URL(defaultRelayUrl());
+  if (fallback.protocol === "ws:") fallback.protocol = "http:";
+  if (fallback.protocol === "wss:") fallback.protocol = "https:";
+  // Pages/custom-domain deployments must use the same-origin Functions proxy,
+  // even if an older build left a root URL in localStorage.
+  if (fallback.origin === window.location.origin && fallback.pathname.replace(/\/+$/, "") === "/relay") {
+    return `${fallback.origin}/relay/`;
+  }
+  const configuredRelay = typeof state.relayUrl === "string" ? state.relayUrl.trim() : "";
+  if (!configuredRelay || configuredRelay === "nostr://public") {
+    const fallbackPath = fallback.pathname.replace(/\/+$/, "");
+    return ["http:", "https:"].includes(fallback.protocol)
+      ? `${fallback.origin}${fallbackPath === "/ws" ? "" : fallbackPath}/`
+      : null;
   }
   try {
-    const url = new URL(state.relayUrl);
+    const url = new URL(configuredRelay);
     if (url.protocol === "ws:") url.protocol = "http:";
     if (url.protocol === "wss:") url.protocol = "https:";
     if (!(["http:", "https:"].includes(url.protocol))) return null;
-    return `${url.origin}/`;
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${url.origin}${path === "/ws" ? "" : path}/`;
   } catch {
     return null;
   }
@@ -211,6 +239,9 @@ async function ensureInviteCode(contact) {
       body: JSON.stringify({ invite: inviteFor(contact) }),
     });
     if (requestId !== inviteCodeRequest || !contactFor(state, contact.conversationId)) return;
+    if (!/^\d{6}$/.test(String(result.code || ""))) {
+      throw new Error("数字邀请码服务返回了无效邀请码，请稍后重试");
+    }
     contact.inviteCode = result.code;
     contact.inviteCodeExpiresAt = result.expiresAt || Date.now() + 10 * 60 * 1000;
     ui.inviteCode = result.code;
