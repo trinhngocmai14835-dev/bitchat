@@ -46,8 +46,9 @@ h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 
 .section-heading h3 { color: #c6d0d8; font-size: 12px; letter-spacing: .08em; }
 .section-heading span { display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 99px; color: #a7b3bd; background: #1a242b; font-size: 10px; }
 .contact-list { display: grid; gap: 8px; }
-.contact-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px; border: 1px solid #ffffff0b; border-radius: 17px; color: #edf2f5; background: #151b21; text-align: left; }
+.contact-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px; border: 1px solid #ffffff0b; border-radius: 17px; color: #edf2f5; background: #151b21; text-align: left; cursor: pointer; }
 .contact-card:active { background: #1d292f; }
+.contact-delete { flex: 0 0 auto; padding: 7px 9px; border: 1px solid #ffb4aa33; border-radius: 10px; color: #ffb4aa; background: transparent; font-size: 11px; }
 .avatar { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 14px; color: #122018; background: #9edb7d; font-weight: 800; }
 .avatar.small { flex-basis: 35px; height: 35px; border-radius: 12px; font-size: 13px; }
 .contact-main { display: grid; flex: 1; gap: 5px; min-width: 0; }

@@ -1,6 +1,7 @@
-const CACHE_NAME = "bitchat-pwa-v11";
+const CACHE_NAME = "bitchat-pwa-v12";
 const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const SERVICE_WORKER_PATH = `${BASE_PATH}/sw.js`;
+const RELAY_PATH_PREFIX = `${BASE_PATH}/relay`;
 const APP_SHELL = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
@@ -23,8 +24,23 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (new URL(event.request.url).pathname === SERVICE_WORKER_PATH) {
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.pathname === SERVICE_WORKER_PATH) {
     event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+  // Poll responses must never be cached: an empty first poll would otherwise
+  // hide later messages from the relay forever on that device.
+  if (requestUrl.pathname === RELAY_PATH_PREFIX || requestUrl.pathname.startsWith(`${RELAY_PATH_PREFIX}/`)) {
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+  // Always load the newest HTML after a deployment. The app shell remains
+  // available from cache as an offline fallback.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" }).catch(() => caches.match(`${BASE_PATH}/index.html`)),
+    );
     return;
   }
   event.respondWith(
@@ -32,6 +48,6 @@ self.addEventListener("fetch", (event) => {
       const copy = response.clone();
       caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
       return response;
-    }).catch(() => caches.match(`${BASE_PATH}/index.html`))),
+    })),
   );
 });

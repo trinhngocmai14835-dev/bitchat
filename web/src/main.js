@@ -286,11 +286,11 @@ function renderHome(displayName) {
   const contacts = state.contacts.map((contact) => {
     const count = messagesFor(state, contact.conversationId).length;
     const hasPeer = Boolean(contact.peer);
-    return `<button class="contact-card" data-contact="${escapeHtml(contact.conversationId)}">
+    return `<div class="contact-card" data-contact="${escapeHtml(contact.conversationId)}" role="button" tabindex="0">
       <span class="avatar">${escapeHtml((contact.nickname || "联").slice(0, 1))}</span>
       <span class="contact-main"><strong>${escapeHtml(contact.nickname)}</strong><small>${hasPeer ? `${count} 条消息` : "等待对方配对"}</small></span>
-      <span class="chevron">›</span>
-    </button>`;
+      ${hasPeer ? `<span class="chevron">›</span>` : `<button class="contact-delete" type="button" data-action="delete-contact" data-contact="${escapeHtml(contact.conversationId)}">删除</button>`}
+    </div>`;
   }).join("");
 
   return `<section class="home-view">
@@ -344,7 +344,7 @@ function renderModal() {
       <div class="modal-kicker">数字配对</div><h2>把 6 位数字发给对方</h2>
       <p class="modal-description">对方在“导入邀请”中输入这 6 位数字后，就可以直接发送第一条消息。</p>
       <div class="invite-code-card"><span>6 位数字邀请码 · 10 分钟有效</span><strong>${escapeHtml(inviteCode || "生成中…")}</strong></div>
-      <div class="modal-actions invite-actions"><button class="primary-button wide" data-action="copy-code" ${inviteCode ? "" : "disabled"}>复制数字邀请码</button></div>
+      <div class="modal-actions invite-actions"><button class="primary-button wide" data-action="copy-code" ${inviteCode ? "" : "disabled"}>复制数字邀请码</button><button class="secondary-button wide" data-action="delete-contact" data-contact="${escapeHtml(contact.conversationId)}">删除这个邀请</button></div>
       <p class="micro-note">邀请码只短期有效，不是账号，也不会暴露聊天内容。对方发来第一条消息后会自动完成配对。</p>
     </section></div>`;
   }
@@ -366,12 +366,19 @@ function renderModal() {
 
 function bindEvents() {
   document.querySelectorAll("[data-contact]").forEach((node) => {
-    node.addEventListener("click", () => {
+    const openContact = () => {
       state.activeConversationId = node.dataset.contact;
       ui.modal = null;
       saveState(state);
       render();
       connectActive();
+    };
+    node.addEventListener("click", openContact);
+    node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openContact();
+      }
     });
   });
   document.querySelectorAll("[data-action='close-modal']").forEach((node) => node.addEventListener("click", (event) => {
@@ -386,6 +393,11 @@ function bindEvents() {
     connectActive();
   }));
   document.querySelectorAll("[data-action='new-invite']").forEach((node) => node.addEventListener("click", newInvite));
+  document.querySelectorAll("[data-action='delete-contact']").forEach((node) => node.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteContact(node.dataset.contact);
+  }));
   document.querySelectorAll("[data-action='import-invite']").forEach((node) => node.addEventListener("click", () => {
     ui.modal = { type: "import" };
     render();
@@ -421,6 +433,26 @@ function closeModal() {
   ui.modal = null;
   ui.inviteCode = null;
   render();
+}
+
+function deleteContact(conversationId) {
+  const contact = contactFor(state, conversationId);
+  if (!contact) return;
+  if (contact.peer) {
+    showNotice("已配对聊天请使用右上角菜单同步删除", "error");
+    return;
+  }
+  if (!window.confirm("删除这个未完成的邀请？邀请码也会在中继端自然过期。")) return;
+  state.contacts = state.contacts.filter((item) => item.conversationId !== conversationId);
+  delete state.messagesByConversation[conversationId];
+  if (state.activeConversationId === conversationId) state.activeConversationId = null;
+  ui.modal = null;
+  ui.inviteCode = null;
+  saveState(state);
+  relay.close();
+  render();
+  connectActive();
+  showNotice("未完成的邀请已删除");
 }
 
 function newInvite() {
@@ -588,7 +620,7 @@ document.addEventListener("visibilitychange", () => {
 render();
 connectActive();
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=11`, { updateViaCache: "none" })
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=12`, { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
