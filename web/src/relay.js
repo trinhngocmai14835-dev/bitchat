@@ -35,7 +35,7 @@ export class RelayClient {
   }
 
   connect(url, conversationId) {
-    this.url = url.trim();
+    this.url = typeof url === "string" ? url.trim() : "";
     this.conversationId = conversationId;
     this.closedByUser = false;
     this.clearReconnect();
