@@ -77,7 +77,7 @@ export async function generateIdentity(nickname = "") {
 
   return {
     id,
-    nickname: nickname.trim(),
+    nickname: typeof nickname === "string" ? nickname.trim() : "",
     exchangePrivateJwk: await exportKey(exchange.privateKey),
     exchangePublicJwk,
     signingPrivateJwk: await exportKey(signing.privateKey),
@@ -109,7 +109,8 @@ export function encodeInvite({ identity, conversationId, generation }) {
 }
 
 export function parseInvite(rawText) {
-  const value = rawText.trim();
+  const value = typeof rawText === "string" ? rawText.trim() : "";
+  if (!value) throw new Error("邀请数据为空，请重新输入 6 位数字");
   const prefix = "bitchat-pwa:v1:";
   if (!value.startsWith(prefix)) throw new Error("邀请文本格式不正确");
   const invite = base64UrlToJson(value.slice(prefix.length));

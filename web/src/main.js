@@ -190,6 +190,9 @@ async function inviteApi(path, options = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "数字邀请码不可用");
+  if (path.includes("/invite/resolve") && typeof data.invite !== "string") {
+    throw new Error("数字邀请码服务返回数据不完整，请重新生成邀请码");
+  }
   return data;
 }
 
@@ -553,5 +556,9 @@ document.addEventListener("visibilitychange", () => {
 
 render();
 connectActive();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=10`, { updateViaCache: "none" })
+    .then((registration) => registration.update())
+    .catch(() => {});
+}
 })();
