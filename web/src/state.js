@@ -15,6 +15,7 @@ export function isValidIdentity(identity) {
 export function defaultRelayUrl() {
   if (typeof location === "undefined") return "ws://localhost:8787/ws";
   if (["localhost", "127.0.0.1", "::1"].includes(location.hostname)) return "ws://localhost:8787/ws";
+  if (!location.hostname.endsWith(".github.io")) return `${location.origin}/relay`;
   return PRODUCTION_RELAY_URL;
 }
 

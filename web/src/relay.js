@@ -8,6 +8,14 @@ const PUBLIC_RELAYS = [
 ];
 const NOSTR_KIND = 1059;
 
+function endpointFor(baseUrl, route) {
+  const endpoint = new URL(baseUrl);
+  const basePath = endpoint.pathname.replace(/\/+$/, "");
+  endpoint.pathname = `${basePath}${route}`;
+  endpoint.search = "";
+  return endpoint;
+}
+
 export class RelayClient {
   constructor({ identity, onEnvelope, onStatus }) {
     this.identity = identity;
@@ -57,9 +65,7 @@ export class RelayClient {
   async pollOnce() {
     if (!this.polling || this.closedByUser) return;
     try {
-      const endpoint = new URL(this.url);
-      endpoint.pathname = "/poll";
-      endpoint.search = "";
+      const endpoint = endpointFor(this.url, "/poll");
       endpoint.searchParams.set("conversationId", this.conversationId);
       const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) throw new Error(`poll ${response.status}`);
@@ -155,9 +161,7 @@ export class RelayClient {
 
   async publish(envelope) {
     if (this.transport === "http") {
-      const endpoint = new URL(this.url);
-      endpoint.pathname = "/publish";
-      endpoint.search = "";
+      const endpoint = endpointFor(this.url, "/publish");
       endpoint.searchParams.set("conversationId", this.conversationId);
       const response = await fetch(endpoint, {
         method: "POST",

@@ -21,6 +21,7 @@ import {
   loadIdentity,
   mergeInvite,
   messagesFor,
+  PRODUCTION_RELAY_URL,
   saveState,
 } from "./state.js";
 import { RelayClient } from "./relay.js";
@@ -57,7 +58,7 @@ if (!state.identity.nostrSecretKey) {
   state.identity.nostrSecretKey = createNostrSecretKey();
   saveState(state);
 }
-if (state.relayUrl === "nostr://public" && defaultRelayUrl() !== "nostr://public") {
+if (!state.relayUrl || state.relayUrl === "nostr://public" || state.relayUrl.startsWith(PRODUCTION_RELAY_URL)) {
   state.relayUrl = defaultRelayUrl();
   saveState(state);
 }
@@ -179,7 +180,7 @@ function relayApiBase() {
 async function inviteApi(path, options = {}) {
   const base = relayApiBase();
   if (!base) throw new Error("当前中继不支持数字邀请码，请检查中继地址");
-  const response = await fetch(new URL(path, base), {
+  const response = await fetch(new URL(path.replace(/^\//, ""), base), {
     ...options,
     cache: "no-store",
     headers: {
