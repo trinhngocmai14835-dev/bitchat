@@ -588,7 +588,7 @@ document.addEventListener("visibilitychange", () => {
 render();
 connectActive();
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=10`, { updateViaCache: "none" })
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=11`, { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }
