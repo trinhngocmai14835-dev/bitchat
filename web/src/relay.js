@@ -26,6 +26,7 @@ export class RelayClient {
     this.subscription = null;
     this.url = "";
     this.conversationId = "";
+    this.conversationIds = [];
     this.reconnectTimer = null;
     this.pollTimer = null;
     this.polling = false;
@@ -36,7 +37,11 @@ export class RelayClient {
 
   connect(url, conversationId) {
     this.url = typeof url === "string" ? url.trim() : "";
-    this.conversationId = conversationId;
+    this.conversationIds = [...new Set(
+      (Array.isArray(conversationId) ? conversationId : [conversationId])
+        .filter((value) => typeof value === "string" && value.length > 0),
+    )];
+    this.conversationId = this.conversationIds[0] || "";
     this.closedByUser = false;
     this.clearReconnect();
     this.closeCurrentTransport();
@@ -65,14 +70,22 @@ export class RelayClient {
   async pollOnce() {
     if (!this.polling || this.closedByUser) return;
     try {
-      const endpoint = endpointFor(this.url, "/poll");
-      endpoint.searchParams.set("conversationId", this.conversationId);
-      const response = await fetch(endpoint, { cache: "no-store" });
-      if (!response.ok) throw new Error(`poll ${response.status}`);
-      const packet = await response.json();
-      this.onStatus("已连接");
-      if (Array.isArray(packet.envelopes)) {
-        for (const envelope of packet.envelopes) this.onEnvelope(envelope);
+      const results = await Promise.allSettled(this.conversationIds.map(async (conversationId) => {
+        const endpoint = endpointFor(this.url, "/poll");
+        endpoint.searchParams.set("conversationId", conversationId);
+        // Protect users still running an older service worker that cached GET responses.
+        endpoint.searchParams.set("_", String(Date.now()));
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (!response.ok) throw new Error(`poll ${response.status}`);
+        const packet = await response.json();
+        if (Array.isArray(packet.envelopes)) {
+          for (const envelope of packet.envelopes) this.onEnvelope(envelope);
+        }
+      }));
+      if (results.some((result) => result.status === "fulfilled")) {
+        this.onStatus("已连接");
+      } else {
+        throw new Error("all polls failed");
       }
     } catch {
       if (!this.closedByUser) this.onStatus("中继连接错误，稍后重试");
@@ -162,7 +175,7 @@ export class RelayClient {
   async publish(envelope) {
     if (this.transport === "http") {
       const endpoint = endpointFor(this.url, "/publish");
-      endpoint.searchParams.set("conversationId", this.conversationId);
+      endpoint.searchParams.set("conversationId", envelope.conversationId || this.conversationId);
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },

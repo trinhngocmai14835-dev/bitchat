@@ -596,16 +596,19 @@ function saveSettings(event) {
 }
 
 function connectActive() {
-  const contact = activeContact() || state.contacts.find((item) => !item.peer) || null;
+  const contactIds = [...new Set([
+    activeContact()?.conversationId,
+    ...state.contacts.filter((contact) => !contact.peer).map((contact) => contact.conversationId),
+  ].filter(Boolean))];
   relay.close();
-  if (!contact) {
+  if (!contactIds.length) {
     relayStatus = "未连接";
     const node = document.querySelector("[data-relay-status]");
     if (node) node.textContent = relayStatus;
     return;
   }
-  // 发起方在收到对方第一条消息前没有 peer，但仍要连接中继才能自动完成配对。
-  relay.connect(state.relayUrl, contact.conversationId);
+  // 轮询所有联系人，避免旧邀请占据唯一的轮询槽位，导致新邀请收不到首条消息。
+  relay.connect(state.relayUrl, contactIds);
 }
 
 window.addEventListener("online", () => {
@@ -620,7 +623,7 @@ document.addEventListener("visibilitychange", () => {
 render();
 connectActive();
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=12`, { updateViaCache: "none" })
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js?v=13`, { updateViaCache: "none" })
     .then((registration) => registration.update())
     .catch(() => {});
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "bitchat-pwa-v12";
+const CACHE_NAME = "bitchat-pwa-v13";
 const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const SERVICE_WORKER_PATH = `${BASE_PATH}/sw.js`;
 const RELAY_PATH_PREFIX = `${BASE_PATH}/relay`;
